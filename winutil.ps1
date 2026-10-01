@@ -1,13 +1,13 @@
 ﻿<#
-.ملاحظات
-    المؤلف         : Chris Titus @christitustech
-    مؤلف Runspace  : @DeveloperDurp
+.NOTES
+    Author         : Chris Titus @christitustech
+    Runspace Author: @DeveloperDurp
     GitHub         : https://github.com/ChrisTitusTech
-    الإصدار        : 26.08.19
+    Version        : 26.08.19
 #>
 
 param (
-    [string]$الإعداد,
+    [string]$Config,
     [ValidateSet("Standard", "Minimal", "Advanced", "")]
     [string]$Preset,
     [switch]$Offline
@@ -55,7 +55,7 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
     break
 }
 
-# متغيّر للمزامنة بين مساحات التشغيل
+# Variable to sync between runspaces
 $sync = [Hashtable]::Synchronized(@{})
 $sync.version = "26.08.19"
 $sync.configs = @{}
@@ -65,10 +65,10 @@ $sync.ProcessRunning = $false
 $sync.Win11ISOProcessRunning = $false
 $sync.selectedAppx = [System.Collections.Generic.List[string]]::new()
 $sync.selectedApps = [System.Collections.Generic.List[string]]::new()
-$sync.selectedالتعديلات = [System.Collections.Generic.List[string]]::new()
+$sync.selectedTweaks = [System.Collections.Generic.List[string]]::new()
 $sync.selectedToggles = [System.Collections.Generic.List[string]]::new()
 $sync.selectedFeatures = [System.Collections.Generic.List[string]]::new()
-$sync.currentTab = "تثبيت"
+$sync.currentTab = "Install"
 
 $dateTime = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
 $winutildir = "$env:LocalAppData\winutil"
@@ -83,15 +83,15 @@ $Host.UI.RawUI.WindowTitle = "WinUtil"
 Clear-Host
 function Add-SelectedAppsMenuItem {
     <#
-    .ملخص
-        هذه دالة مساعدة تُنشئ وتُضيف عناصر القائمة إلى نافذة التطبيقات المحددة المنبثقة.
+    .SYNOPSIS
+        This is a helper function that generates and adds the Menu Items to the Selected Apps Popup.
 
     .Parameter name
-        الاسم الفعلي للتطبيق مثل "Chrome" or "Brave"
-        هذا الاسم موجود في خاصية "Content" داخل applications.json
-    .معامل key
-        المفتاح الذي يُعرّف كائن التطبيق في applications.json
-        بالنسبة لـ Chrome سيكون "WPFInstallchrome" لأن "WPFInstall" يُضاف تلقائياً لكل مفتاح في applications.json
+        The actual Name of an App like "Chrome" or "Brave"
+        This name is contained in the "Content" property inside the applications.json
+    .PARAMETER key
+        The key which identifies an app object in applications.json
+        For Chrome this would be "WPFInstallchrome" because "WPFInstall" is prepended automatically for each key in applications.json
     #>
 
     param ([string]$name, [string]$key)
@@ -101,8 +101,8 @@ function Add-SelectedAppsMenuItem {
     $selectedAppGrid.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition -Property @{Width = "*"}))
     $selectedAppGrid.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition -Property @{Width = "30"}))
 
-    # يضبط الاسم لـ Content وكذلك ToolTip، لأن حدود النافذة المنبثقة لها عرض ثابت وقد يتجاوز النص.
-    # مع تلميح الأداة، يمكنك قراءة الإدخال الكامل عند التحويم
+    # Sets the name to the Content as well as the Tooltip, because the parent Popup Border has a fixed width and text could "overflow".
+    # With the tooltip, you can still read the whole entry on hover
     $selectedAppLabel = New-Object Windows.Controls.Label
     $selectedAppLabel.Content = $name
     $selectedAppLabel.ToolTip = $name
@@ -116,34 +116,34 @@ function Add-SelectedAppsMenuItem {
     $selectedAppRemoveButton.Content = [string]([char]0xE711)
     $selectedAppRemoveButton.HorizontalAlignment = "Center"
     $selectedAppRemoveButton.Tag = $key
-    $selectedAppRemoveButton.ToolTip = "إزالة التطبيق من التحديد"
+    $selectedAppRemoveButton.ToolTip = "Remove the App from Selection"
     $selectedAppRemoveButton.SetResourceReference([Windows.Controls.Control]::ForegroundProperty, "MainForegroundColor")
     $selectedAppRemoveButton.SetResourceReference([Windows.Controls.Control]::StyleProperty, "HoverButtonStyle")
 
-    # تمييز أيقونة الإزالة عند التحويم
+    # Highlight the Remove icon on Hover
     $selectedAppRemoveButton.Add_MouseEnter({ $this.Foreground = "Red" })
     $selectedAppRemoveButton.Add_MouseLeave({ $this.SetResourceReference([Windows.Controls.Control]::ForegroundProperty, "MainForegroundColor") })
     $selectedAppRemoveButton.Add_Click({
-            $sync.($this.Tag).isChecked = $false # عند النقر على زر الإزالة، نحتاج فقط إلى إلغاء تحديد خانة الاختيار المقابلة. هذا سيُطلق جميع التغييرات اللازمة لتحديث واجهة المستخدم
+            $sync.($this.Tag).isChecked = $false # On click of the remove button, we only have to uncheck the corresponding checkbox. This will kick of all necessary changes to update the UI
     })
     [System.Windows.Controls.Grid]::SetColumn($selectedAppRemoveButton, 1)
     $selectedAppGrid.Children.Add($selectedAppRemoveButton)
-    # إضافة عنصر جديد إلى النافذة المنبثقة
+    # Add new Element to Popup
     $sync.selectedAppsstackPanel.Children.Add($selectedAppGrid)
 }
 
-function إغلاق-WinUtilRunspacePool {
+function Close-WinUtilRunspacePool {
     if ($null -eq $sync -or -not $sync.ContainsKey("runspace") -or $null -eq $sync.runspace) {
         return
     }
 
     try {
         if ($sync.runspace.RunspacePoolStateInfo.State -notin @(
-            [System.Management.Automation.Runspaces.RunspacePoolState]::إغلاقd,
+            [System.Management.Automation.Runspaces.RunspacePoolState]::Closed,
             [System.Management.Automation.Runspaces.RunspacePoolState]::Closing,
             [System.Management.Automation.Runspaces.RunspacePoolState]::Broken
         )) {
-            $sync.runspace.إغلاق()
+            $sync.runspace.Close()
         }
     } finally {
         $sync.runspace.Dispose()
@@ -153,11 +153,11 @@ function إغلاق-WinUtilRunspacePool {
 
 function Find-AppsByNameOrDescription {
     <#
-        .ملخص
-            يُصفّي إدخالات تبويب التثبيت حسب نص البحث والفئة
+        .SYNOPSIS
+            Filters the Install tab entries by search text and by category
 
-        .وصف
-            نص البحث والفئات مرشّحات مستقلة كلاهما يجب أن يجتاز. An entry is
+        .DESCRIPTION
+            Search text and categories are independent filters that both have to pass. An entry is
             shown when its name, description, or application preset key matches the search text, and
             when its category is in the selected set. An empty search matches everything, and an empty
             category set matches every category.
@@ -166,16 +166,16 @@ function Find-AppsByNameOrDescription {
             category would otherwise hide the very results that were asked for. With no filter at
             all the collapsed state the user set is restored.
 
-        .معامل SearchString
-            النص المراد البحث عنه. أحرف البدل تُعامَل كأحرف حرفية.
+        .PARAMETER SearchString
+            The string to search for. Wildcards are treated as literal characters.
 
-        .معامل Categories
-            الفئات المراد إظهارها. مصفوفة فارغة أو مفقودة تُظهر الجميع.
+        .PARAMETER Categories
+            The categories to show. An empty or missing array shows all of them.
 
-        .ملاحظات
-            - يستخدم $sync من نطاق الوحدة (لا يحتاج معامل؛ يرث من نطاق المُستدعي)
-            - يعالج بأمان مفاتيح الجدول المفقودة والعناصر الفارغة
-            - محمي بـ try/catch لمنع تعطّل خيط واجهة المستخدم
+        .NOTES
+            - Uses module-scope $sync (no parameter needed; inherits from caller's scope)
+            - Safely handles missing hashtable keys and null UI elements
+            - Protected by try/catch to prevent UI thread crashes
     #>
     param(
         [Parameter(Mandatory = $false)]
@@ -185,7 +185,7 @@ function Find-AppsByNameOrDescription {
         [string[]]$Categories = @()
     )
 
-    # التحقق من وجود $sync وبنيته المطلوبة
+    # Validate that $sync exists and has required structure
     if ($null -eq $sync) {
         Write-Warning "Find-AppsByNameOrDescription: Global `$sync not found. Aborting search."
         return
@@ -201,7 +201,7 @@ function Find-AppsByNameOrDescription {
         return
     }
 
-    # الفئات التي وسّعتها التصفية نيابةً عن المستخدم، مسح التصفية يُلغي ذلك
+    # Categories that filtering expanded on the user's behalf, so clearing the filter can undo it
     if ($null -eq $sync.AppCategoryAutoExpanded) {
         $sync.AppCategoryAutoExpanded = @{}
     }
@@ -211,7 +211,7 @@ function Find-AppsByNameOrDescription {
         $hasSearch = -not [string]::IsNullOrWhiteSpace($SearchString)
         $hasCategories = $activeCategories.Count -gt 0
 
-        # لا يوجد تصفية، لذا يُعاد كل إدخال وتُترك الفئات المطوية مطوية
+        # Nothing is filtered, so put every entry back and leave the collapsed categories collapsed
         if (-not $hasSearch -and -not $hasCategories) {
             $sync.ItemsControl.Items | ForEach-Object {
                 $_.Visibility = [Windows.Visibility]::Visible
@@ -222,7 +222,7 @@ function Find-AppsByNameOrDescription {
 
                     $categoryLabel.Visibility = [Windows.Visibility]::Visible
 
-                    # الفئة التي وسّعتها التصفية تعود لحالتها التي تركها المستخدم
+                    # A category that filtering expanded goes back to how the user left it
                     $categoryName = $categoryLabel.Content -replace '^[+-] ', ''
                     if ($sync.AppCategoryAutoExpanded.ContainsKey($categoryName)) {
                         $categoryLabel.Content = $categoryLabel.Content -replace "^- ", "+ "
@@ -244,11 +244,11 @@ function Find-AppsByNameOrDescription {
             return
         }
 
-        # تهريب أحرف البدل لتطابق النص الحرفي
+        # Escape wildcard characters for literal matching
         $escapedSearchString = [System.Management.Automation.WildcardPattern]::Escape($SearchString)
 
         $sync.ItemsControl.Items | ForEach-Object {
-            # كل عنصر هو حاوية StackPanel: Children[0] = تسمية، Children[1] = WrapPanel
+            # Each item is a StackPanel container with Children[0] = label, Children[1] = WrapPanel
             if ($_.Children.Count -ge 2) {
                 $categoryLabel = $_.Children[0]
                 $wrapPanel = $_.Children[1]
@@ -280,7 +280,7 @@ function Find-AppsByNameOrDescription {
                         }
                     }
                     else {
-                        # إخفاء التطبيق إذا لم يُعثر على إدخاله (مشكلة تكامل البيانات)
+                        # Hide app if no entry found (data integrity issue)
                         $appControl.Visibility = [Windows.Visibility]::Collapsed
                     }
                 }
@@ -288,8 +288,8 @@ function Find-AppsByNameOrDescription {
                 if ($categoryHasMatch) {
                     $wrapPanel.Visibility = [Windows.Visibility]::Visible
                     $_.Visibility = [Windows.Visibility]::Visible
-                    # توسيع الفئة وإلا تبقى النتائج مخفية خلف رأس مطوي.
-                    # تذكّر أنها كانت مطوية لإعادتها عند مسح التصفية.
+                    # Expand it, otherwise the matches stay hidden behind a collapsed header.
+                    # Remember that it was collapsed so clearing the filter can put it back.
                     if ($categoryLabel.Content -like "+*") {
                         $categoryLabel.Content = $categoryLabel.Content -replace "^\+ ", "- "
                         $sync.AppCategoryAutoExpanded[($categoryLabel.Content -replace '^- ', '')] = $true
@@ -303,30 +303,30 @@ function Find-AppsByNameOrDescription {
     }
     catch {
         Write-Warning "Find-AppsByNameOrDescription: An error occurred during search: $_"
-        # الفشل بأناقة - لا تُعطّل خيط واجهة المستخدم
+        # Fail gracefully - do not crash the UI thread
         return
     }
 }
 
-function Find-التعديلاتByNameOrDescription {
+function Find-TweaksByNameOrDescription {
     <#
-        .ملخص
-            يبحث في التعديلات وتبويب التعديلات ويخفي كل الإدخالات التي لا تطابق نص البحث
+        .SYNOPSIS
+            Searches through the Tweaks on the Tweaks Tab and hides all entries that do not match the search string
 
-        .وصف
+        .DESCRIPTION
             Filters tweak entries by name or description using literal string matching (no wildcard expansion).
             Respects collapsed category state and handles null $sync gracefully.
             Safe for rapid keystroke events; no terminal spam on error conditions.
 
-        .معامل SearchString
-            النص المراد البحث عنه. أحرف البدل تُعامَل كأحرف حرفية.
+        .PARAMETER SearchString
+            The string to be searched for. Wildcards are treated as literal characters.
 
-        .ملاحظات
-            - يستخدم $sync من نطاق الوحدة (مع رجوع للنطاق العام/السكريبت عند الحاجة)
-            - ينفّذ مطابقة حرفية (بدون توسيع أحرف البدل)
-            - يعالج بأمان العناصر المفقودة والخصائص الفارغة
-            - محمي بـ try/catch لمنع تعطّل خيط واجهة المستخدم
-            - متوافق مع PowerShell 5.1 (بدون عمليات ثلاثية أو ميزات لغوية متقدمة)
+        .NOTES
+            - Uses module-scope $sync (resolved via global/script fallback if needed)
+            - Performs literal matching (no wildcard expansion)
+            - Safely handles missing UI elements and null properties
+            - Protected by try/catch to prevent UI thread crashes
+            - PowerShell 5.1 compatible (no ternary operators, no advanced language features)
     #>
     param(
         [Parameter(Mandatory = $false)]
@@ -334,7 +334,7 @@ function Find-التعديلاتByNameOrDescription {
     )
 
     # ------------------------------------------------------------------------------
-    # 1. حل $SYNC بالرجوع للمستويات المتعددة
+    # 1. RESOLVE $SYNC WITH MULTI-LEVEL FALLBACK
     # ------------------------------------------------------------------------------
 
     if ($null -eq $Sync) {
@@ -346,21 +346,21 @@ function Find-التعديلاتByNameOrDescription {
 
     # Validate that $Sync exists and has required structure
     if ($null -eq $Sync) {
-        # إرجاع صامت - الدالة تُستدعى عند كل ضغطة مفتاح؛ لا تكرار التحذيرات
+        # Silent return - function called on every keystroke; no warning spam
         return
     }
 
     if ($null -eq $Sync.Form) {
-        # إرجاع صامت - النموذج لم يُهيَّأ بعد
+        # Silent return - form not yet initialized
         return
     }
 
     # ------------------------------------------------------------------------------
-    # 2. الحصول على مرجع لوح التعديلات أو إزالة تطبيقات النظام
+    # 2. GET REFERENCE TO TWEAKS OR APPX PANEL
     # ------------------------------------------------------------------------------
 
     $panelName = "tweakspanel"
-    if ($null -ne $Sync.currentTab -and $Sync.currentTab -eq "إزالة تطبيقات النظام") {
+    if ($null -ne $Sync.currentTab -and $Sync.currentTab -eq "AppX") {
         $panelName = "appxpanel"
     }
 
@@ -369,17 +369,17 @@ function Find-التعديلاتByNameOrDescription {
         $tweaksPanel = $Sync.Form.FindName($panelName)
     }
     catch {
-        # إرجاع صامت - اللوح غير موجود أو محذوف
+        # Silent return - panel not found or disposed
         return
     }
 
     if ($null -eq $tweaksPanel) {
-        # إرجاع صامت - اللوح غير موجود
+        # Silent return - panel doesn't exist
         return
     }
 
     # ------------------------------------------------------------------------------
-    # 3. معالجة نص البحث الفارغ - إعادة الضبط للحالة الافتراضية
+    # 3. HANDLE EMPTY/WHITESPACE SEARCH STRING - RESET TO DEFAULT STATE
     # ------------------------------------------------------------------------------
 
     if ([string]::IsNullOrWhiteSpace($SearchString)) {
@@ -387,12 +387,12 @@ function Find-التعديلاتByNameOrDescription {
             $tweaksPanel.Children | ForEach-Object {
                 $categoryBorder = $_
 
-                # ضبط الظهور بأمان
+                # Safely set visibility
                 if ($null -ne $categoryBorder) {
                     $categoryBorder.Visibility = [Windows.Visibility]::Visible
                 }
 
-                # معالجة كل فئة
+                # Process each category
                 if ($categoryBorder -is [Windows.Controls.Border]) {
                     $dockPanel = $null
                     if ($null -ne $categoryBorder.Child) {
@@ -411,15 +411,15 @@ function Find-التعديلاتByNameOrDescription {
                             else {
                                 $items = $targetPanel.Children
                             }
-                            # إظهار كل عناصر الفئة
+                            # Show all items in the category
                             foreach ($item in $items) {
                                 if ($null -ne $item) {
-                                    # التحقق من أنها تسمية فئة (أول تسمية في الحاوية)
+                                    # Check if it's a category label (first Label in the container)
                                     if ($item -is [Windows.Controls.Label] -or $item.GetType().Name -eq "Label") {
                                         $item.Visibility = [Windows.Visibility]::Visible
                                     }
                                     elseif ($item -is [Windows.Controls.DockPanel] -or $item -is [Windows.Controls.StackPanel] -or $item.GetType().Name -eq "DockPanel" -or $item.GetType().Name -eq "StackPanel") {
-                                        # إظهار كل حاويات خانات الاختيار
+                                        # Show all checkbox containers
                                         $item.Visibility = [Windows.Visibility]::Visible
                                     }
                                 }
@@ -430,7 +430,7 @@ function Find-التعديلاتByNameOrDescription {
             }
         }
         catch {
-            # التقاط صامت - العنصر قد يكون محذوفاً
+            # Silent catch - UI element may be disposed
             $null = $_
         }
 
@@ -438,17 +438,17 @@ function Find-التعديلاتByNameOrDescription {
     }
 
     # ------------------------------------------------------------------------------
-    # 4. تنفيذ البحث الحرفي (بدون توسيع أحرف البدل)
+    # 4. PERFORM LITERAL SEARCH (NO WILDCARD EXPANSION)
     # ------------------------------------------------------------------------------
 
     try {
-        # توحيد مصطلح البحث مرة واحدة لكل العملية
+        # Normalize search term once for the entire operation
         $searchTerm = $SearchString
         if ($null -eq $searchTerm) {
             $searchTerm = ""
         }
 
-        # التكرار على جميع الفئات
+        # Iterate through all categories
         $tweaksPanel.Children | ForEach-Object {
             $categoryBorder = $_
             $categoryHasMatch = $false
@@ -480,35 +480,35 @@ function Find-التعديلاتByNameOrDescription {
                             }
 
                             # ------------------------------------------------------------
-                            # التحقق من أن هذا تسمية فئة (عادةً أول تسمية)
+                            # Check if this is a category label (usually first Label)
                             # ------------------------------------------------------------
 
                             if ($item -is [Windows.Controls.Label] -or $item.GetType().Name -eq "Label") {
                                 $categoryLabel = $item
-                                # إخفاء تسمية الفئة مبدئياً؛ إظهارها فقط عند وجود تطابق
+                                # Initially hide category label; show it only if matches found
                                 $item.Visibility = [Windows.Visibility]::Collapsed
                             }
 
                             # ------------------------------------------------------------
-                            # التحقق من أن هذا DockPanel يحتوي خانة تعديل
+                            # Check if this is a DockPanel containing a tweak checkbox
                             # ------------------------------------------------------------
 
                             elseif ($item -is [Windows.Controls.DockPanel] -or $item.GetType().Name -eq "DockPanel") {
                                 $checkbox = $null
                                 $label = $null
 
-                                # استخراج خانة الاختيار والتسمية بأمان
+                                # Safely extract checkbox and label
                                 $checkbox = $item.Children | Where-Object { $_ -is [Windows.Controls.CheckBox] -or $_.GetType().Name -eq "CheckBox" } | Select-Object -First 1
                                 $label = $item.Children | Where-Object { $_ -is [Windows.Controls.Label] -or $_.GetType().Name -eq "Label" } | Select-Object -First 1
 
-                                # التحقق من تطابق التعديل مع معايير البحث
+                                # Check if tweak matches search criteria
                                 $itemMatches = $false
 
                                 if ($null -ne $label) {
                                     $labelContent = $label.Content
                                     $labelToolTip = $label.ToolTip
 
-                                    # التحقق الآمن من القيم الفارغة للخصائص
+                                    # Safely null-check properties
                                     if ($null -eq $labelContent) {
                                         $labelContent = ""
                                     }
@@ -516,11 +516,11 @@ function Find-التعديلاتByNameOrDescription {
                                         $labelToolTip = ""
                                     }
 
-                                    # التحويل لنص وإجراء مطابقة حرفية
+                                    # Convert to string and perform LITERAL matching
                                     $labelContentStr = [string]$labelContent
                                     $labelToolTipStr = [string]$labelToolTip
 
-                                    # استخدام IndexOf للمطابقة الحرفية (بدون تفسير أحرف البدل)
+                                    # Use IndexOf for literal matching (no wildcard interpretation)
                                     $contentMatch = $labelContentStr.IndexOf($searchTerm, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
                                     $toolTipMatch = $labelToolTipStr.IndexOf($searchTerm, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
 
@@ -529,7 +529,7 @@ function Find-التعديلاتByNameOrDescription {
                                     }
                                 }
 
-                                # ضبط الظهور بناءً على نتيجة التطابق
+                                # Set visibility based on match result
                                 if ($itemMatches) {
                                     $item.Visibility = [Windows.Visibility]::Visible
                                     $categoryHasMatch = $true
@@ -540,7 +540,7 @@ function Find-التعديلاتByNameOrDescription {
                             }
 
                             # ------------------------------------------------------------
-                            # التحقق من أن هذا StackPanel يحتوي خانة تعديل
+                            # Check if this is a StackPanel containing a tweak checkbox
                             # ------------------------------------------------------------
 
                             elseif ($item -is [Windows.Controls.StackPanel] -or $item.GetType().Name -eq "StackPanel") {
@@ -553,7 +553,7 @@ function Find-التعديلاتByNameOrDescription {
                                     $checkboxContent = $checkbox.Content
                                     $checkboxToolTip = $checkbox.ToolTip
 
-                                    # التحقق الآمن من القيم الفارغة للخصائص
+                                    # Safely null-check properties
                                     if ($null -eq $checkboxContent) {
                                         $checkboxContent = ""
                                     }
@@ -561,11 +561,11 @@ function Find-التعديلاتByNameOrDescription {
                                         $checkboxToolTip = ""
                                     }
 
-                                    # التحويل لنص وإجراء مطابقة حرفية
+                                    # Convert to string and perform LITERAL matching
                                     $checkboxContentStr = [string]$checkboxContent
                                     $checkboxToolTipStr = [string]$checkboxToolTip
 
-                                    # استخدام IndexOf للمطابقة الحرفية (بدون تفسير أحرف البدل)
+                                    # Use IndexOf for literal matching (no wildcard interpretation)
                                     $contentMatch = $checkboxContentStr.IndexOf($searchTerm, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
                                     $toolTipMatch = $checkboxToolTipStr.IndexOf($searchTerm, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
 
@@ -574,7 +574,7 @@ function Find-التعديلاتByNameOrDescription {
                                     }
                                 }
 
-                                # ضبط الظهور بناءً على نتيجة التطابق
+                                # Set visibility based on match result
                                 if ($itemMatches) {
                                     $item.Visibility = [Windows.Visibility]::Visible
                                     $categoryHasMatch = $true
@@ -586,20 +586,20 @@ function Find-التعديلاتByNameOrDescription {
                         }
 
                         # ------------------------------------------------------------
-                        # تحديث ظهور تسمية الفئة وحالة التوسيع/الطي
+                        # Update category label visibility and expanded/collapsed state
                         # ------------------------------------------------------------
 
                         if ($categoryHasMatch) {
-                            # إظهار تسمية الفئة
+                            # Show category label
                             if ($null -ne $categoryLabel) {
                                 $categoryLabel.Visibility = [Windows.Visibility]::Visible
 
-                                # تحديث تسمية الفئة لحالة التوسيع (تغيير "+" إلى "-")
+                                # Update category label to expanded state (change "+" to "-")
                                 $labelContent = $categoryLabel.Content
                                 if ($null -ne $labelContent) {
                                     $labelStr = [string]$labelContent
 
-                                    # استبدال نصي آمن بدون regex
+                                    # Safe string replacement without -replace regex
                                     if ($labelStr.StartsWith("+ ")) {
                                         $expandedLabel = "- " + $labelStr.Substring(2)
                                         $categoryLabel.Content = $expandedLabel
@@ -611,7 +611,7 @@ function Find-التعديلاتByNameOrDescription {
                 }
 
                 # ----------------------------------------------------------------
-                # ضبط ظهور حدود الفئة بناءً على وجود تطابقات
+                # Set category border visibility based on whether it has matches
                 # ----------------------------------------------------------------
 
                 if ($categoryHasMatch) {
@@ -624,22 +624,22 @@ function Find-التعديلاتByNameOrDescription {
         }
     }
     catch {
-        # التقاط صامت - العناصر قد تكون محذوفة أو في حالة غير متوقعة
-        # لا تسجّل في الطرفية لأن هذه الدالة تُستدعى عند كل ضغطة مفتاح
+        # Silent catch - UI elements may be disposed or in unexpected state
+        # Do not log to terminal as this function is called on every keystroke
         $null = $_
     }
 }
 
 function Get-WinUtilEntryToolTip {
     <#
-        .ملخص
-            يبني نص تلميح الأدوات لإدخال تطبيق/تعديل/ميزة: its description plus its preset JSON key
+        .SYNOPSIS
+            Builds the tooltip string for an app/tweak/feature entry: its description plus its preset JSON key
 
-        .معامل Description
-            وصف الإدخال من JSON الإعداد. قد يكون فارغاً أو null.
+        .PARAMETER Description
+            The entry's description from the config JSON. May be null or empty.
 
-        .معامل Key
-            مفتاح JSON للإدخال كما يُستخدم في ملفات الإعداد المسبق (e.g. WPFInstallbrave, WPFالتعديلاتTele).
+        .PARAMETER Key
+            The entry's JSON key as used in preset files (e.g. WPFInstallbrave, WPFTweaksTele).
     #>
     param(
         [Parameter(Mandatory = $false)]
@@ -650,31 +650,31 @@ function Get-WinUtilEntryToolTip {
     )
 
     if ([string]::IsNullOrWhiteSpace($Description)) {
-        return "مفتاح الإعداد المسبق: $Key"
+        return "Preset key: $Key"
     }
 
-    return "$Description`n`nمفتاح الإعداد المسبق: $Key"
+    return "$Description`n`nPreset key: $Key"
 }
 
-function Get-WinUtilتثبيتedAPPX {
+function Get-WinUtilInstalledAPPX {
     <#
 
-    .ملخص
-        يحصل على أسماء حزم إزالة تطبيقات النظام المثبتة لجميع المستخدمين
+    .SYNOPSIS
+        Gets the names of AppX packages installed for all users
 
     #>
 
-    # إزالة تطبيقات النظام module auto-loading can leave PowerShell 7 dependent on a temporary Windows PowerShell
+    # AppX module auto-loading can leave PowerShell 7 dependent on a temporary Windows PowerShell
     # compatibility proxy. Run the query in Windows PowerShell 5.1 so it remains available after
     # those temporary proxy files are removed.
     $ps5Command = {
-        Get-AppxPackage -الكلUsers -ErrorAction Stop | Select-Object -ExpandProperty Name
+        Get-AppxPackage -AllUsers -ErrorAction Stop | Select-Object -ExpandProperty Name
     }
 
     $packageOutput = powershell.exe -NoProfile -NonInteractive -Command $ps5Command 2>&1
     if ($LASTEXITCODE -ne 0) {
         $failureDetails = ($packageOutput | Out-String).Trim()
-        Write-WinUtilLog -Level "ERROR" -Component "إزالة تطبيقات النظام" -Message "فشل الحصول على حزم إزالة تطبيقات النظام المثبتة: $failureDetails"
+        Write-WinUtilLog -Level "ERROR" -Component "AppX" -Message "Failed to get installed AppX packages: $failureDetails"
         return @()
     }
 
@@ -697,7 +697,7 @@ function Get-WinUtilPackageLogSummary {
             Select-Object -First 1
 
         if ([string]::IsNullOrWhiteSpace([string]$packageName)) {
-            $packageName = "حزمة غير معروفة"
+            $packageName = "Unknown package"
         }
 
         if ($Preference -eq "Choco" -and -not [string]::IsNullOrWhiteSpace([string]$package.choco) -and $package.choco -ne "na") {
@@ -705,21 +705,21 @@ function Get-WinUtilPackageLogSummary {
         } elseif (-not [string]::IsNullOrWhiteSpace([string]$package.winget) -and $package.winget -ne "na") {
             "$packageName (winget: $($package.winget))"
         } else {
-            "$packageName (لا يوجد معرّف للحزمة)"
+            "$packageName (no package id)"
         }
     })
 }
 
 function Get-WinUtilRegistryComboState {
     <#
-    .ملخص
-        يجد حالة مربع التحديد المُعدَّة المطابقة لقيم الريجستري الحالية.
+    .SYNOPSIS
+        Finds the configured combo-box state matching the current registry values.
 
-    .معامل Registry
-        إعدادات الريجستري التي تحتوي تعيين قيم لكل حالة مدعومة.
+    .PARAMETER Registry
+        Registry settings containing a value mapping for each supported state.
 
-    .مخرجات
-        اسم الحالة المطابقة.
+    .OUTPUTS
+        The name of the matching state.
     #>
     param(
         [Parameter(Mandatory)]
@@ -732,7 +732,7 @@ function Get-WinUtilRegistryComboState {
             $currentValue = Get-WinUtilRegistryComboValue -Setting $setting
             $actualValue = if ($currentValue.Exists -and $null -ne $currentValue.Value) { $currentValue.Value } else { $setting.DefaultValue }
             $configuredValue = $setting.Values.PSObject.Properties[$state.Name].Value
-            # الحذف يمثّل الإعداد الافتراضي الفعلي لـ Windows عند مطابقة الحالة الحالية.
+            # Removal represents the effective Windows default when matching the current state.
             $expectedValue = if ($configuredValue -eq "<RemoveEntry>") { $setting.DefaultValue } else { $configuredValue }
             if ([string]$actualValue -ne [string]$expectedValue) {
                 $stateMatches = $false
@@ -744,16 +744,16 @@ function Get-WinUtilRegistryComboState {
         }
     }
 
-    throw "قيم الريجستري لا تتطابق مع حالة مدعومة."
+    throw "قيم الريجستري لا تطابق حالة مدعومة."
 }
 
 function Get-WinUtilRegistryComboValue {
     <#
-    .ملخص
-        يقرأ قيمة ريجستري واحدة لحالة مربع تحديد مدعوم بالريجستري.
+    .SYNOPSIS
+        Reads one registry value for a registry-backed combo-box state.
 
-    .معامل Setting
-        إعداد الريجستري من إعداد مربع التحديد.
+    .PARAMETER Setting
+        The registry setting from the combo-box configuration.
     #>
     param(
         [Parameter(Mandatory)]
@@ -765,7 +765,7 @@ function Get-WinUtilRegistryComboValue {
         $property = $item.PSObject.Properties[$Setting.Name]
         return [pscustomobject]@{ Exists = $null -ne $property; Value = $property.Value }
     } catch [System.Management.Automation.PSArgumentException] {
-        # مزوّد الريجستري يستخدم PSArgumentException عند غياب قيمة مسمّاة.
+        # The registry provider uses PSArgumentException when a named value is absent.
         return [pscustomobject]@{ Exists = $false; Value = $null }
     } catch [System.Management.Automation.ItemNotFoundException] {
         return [pscustomobject]@{ Exists = $false; Value = $null }
@@ -872,11 +872,11 @@ Function Get-WinUtilToggleStatus ($ToggleSwitch) {
 function Get-WinUtilVariables {
 
     <#
-    .ملخص
-        يحصل على كل عناصر النموذج من النوع المحدد
+    .SYNOPSIS
+        Gets every form object of the provided type
 
-    .مخرجات
-        قائمة تحتوي على كل الكائنات المطابقة للنوع المحدد
+    .OUTPUTS
+        List containing every object that matches the provided type
     #>
     param (
         [Parameter()]
@@ -900,26 +900,26 @@ function Get-WinUtilVariables {
     return $keys
 }
 
-    function Initialize-تثبيتAppArea {
+    function Initialize-InstallAppArea {
         <#
-            .ملخص
-                يُنشئ ScrollViewer يحتوي ItemsControl مُعدَّ للاستخدام الافتراضي لتحميل العناصر المرئية فقط لأسباب أداء.
-                يُستخدم كعنصر أب لجميع إدخالات الفئات والتطبيقات في تبويب التثبيت
-                يُستخدم كجزء من إنشاء واجهة تبويب التثبيت
+            .SYNOPSIS
+                Creates a [Windows.Controls.ScrollViewer] containing a [Windows.Controls.ItemsControl] which is setup to use Virtualization to only load the visible elements for performance reasons.
+                This is used as the parent object for all category and app entries on the install tab
+                Used to as part of the Install Tab UI generation
 
-            .معامل TargetElement
-                العنصر الذي ستُضاف إليه منطقة التطبيقات
+            .PARAMETER TargetElement
+                The element to which the AppArea should be added
 
         #>
         param($TargetElement)
         $targetGrid = $sync.Form.FindName($TargetElement)
         $null = $targetGrid.Children.Clear()
 
-        # إنشاء الحدود الخارجية للمنطقة التي ستوضع فيها التطبيقات
+        # Create the outer Border for the aren where the apps will be placed
         $Border = New-Object Windows.Controls.Border
         $Border.VerticalAlignment = "Stretch"
         $Border.SetResourceReference([Windows.Controls.Control]::StyleProperty, "BorderStyle")
-        # إضافة ScrollViewer لأن ItemsControl لا يدعم التمرير بنفسه
+        # Add a ScrollViewer, because the ItemsControl does not support scrolling by itself
         $scrollViewer = New-Object Windows.Controls.ScrollViewer
         $scrollViewer.VerticalScrollBarVisibility = 'Auto'
         $scrollViewer.HorizontalAlignment = 'Stretch'
@@ -927,13 +927,13 @@ function Get-WinUtilVariables {
         $scrollViewer.CanContentScroll = $true
         $Border.Child = $scrollViewer
 
-        ## إنشاء ItemsControl الذي سيكون أباً لجميع إدخالات التطبيقات
+        ## Create the ItemsControl, which will be the parent of all the app entries
         $itemsControl = New-Object Windows.Controls.ItemsControl
         $itemsControl.HorizontalAlignment = 'Stretch'
         $itemsControl.VerticalAlignment = 'Stretch'
         $scrollViewer.Content = $itemsControl
 
-        # استخدام WrapPanel لإنشاء أعمدة ديناميكية بناءً على عرض الإدخال وعرض النافذة
+        # Use WrapPanel to create dynamic columns based on AppEntryWidth and window width
         $itemsPanelTemplate = New-Object Windows.Controls.ItemsPanelTemplate
         $factory = New-Object Windows.FrameworkElementFactory ([Windows.Controls.WrapPanel])
         $factory.SetValue([Windows.Controls.WrapPanel]::OrientationProperty, [Windows.Controls.Orientation]::Horizontal)
@@ -941,21 +941,21 @@ function Get-WinUtilVariables {
         $itemsPanelTemplate.VisualTree = $factory
         $itemsControl.ItemsPanel = $itemsPanelTemplate
 
-        # إضافة الحدود التي تحتوي منطقة التطبيقات إلى الشبكة المستهدفة
+        # Add the Border containing the App Area to the target Grid
         $targetGrid.Children.Add($Border) | Out-Null
 
         return $itemsControl
     }
 
-function Initialize-تثبيتAppEntry {
+function Initialize-InstallAppEntry {
     <#
-        .ملخص
-            يُنشئ إدخال التطبيق ليُوضع في تبويب التثبيت لتطبيق معين
-            يُستخدم كجزء من إنشاء واجهة تبويب التثبيت
-        .معامل TargetElement
-            العنصر الذي ستوضع فيه التطبيقات
-        .معامل appKey
-            مفتاح التطبيق داخل $sync.configs.applicationsHashtable
+        .SYNOPSIS
+            Creates the app entry to be placed on the install tab for a given app
+            Used to as part of the Install Tab UI generation
+        .PARAMETER TargetElement
+            The Element into which the Apps should be placed
+        .PARAMETER appKey
+            The Key of the app inside the $sync.configs.applicationsHashtable
     #>
         param(
             [Windows.Controls.WrapPanel]$TargetElement,
@@ -964,7 +964,7 @@ function Initialize-تثبيتAppEntry {
 
         $app = $sync.configs.applicationsHashtable.$appKey
 
-        # إنشاء الحدود الخارجية لنوع التطبيق
+        # Create the outer Border for the application type
         $border = New-Object Windows.Controls.Border
         $border.Style = $sync.Form.Resources.AppEntryBorderStyle
         $border.Tag = $appKey
@@ -976,39 +976,39 @@ function Initialize-تثبيتAppEntry {
         })
         $border.Add_MouseEnter({
             if (($sync.$($this.Tag).IsChecked) -eq $false) {
-                $this.SetResourceReference([Windows.Controls.Control]::BackgroundProperty, "AppتثبيتHighlightedColor")
+                $this.SetResourceReference([Windows.Controls.Control]::BackgroundProperty, "AppInstallHighlightedColor")
             }
         })
         $border.Add_MouseLeave({
             if (($sync.$($this.Tag).IsChecked) -eq $false) {
-                $this.SetResourceReference([Windows.Controls.Control]::BackgroundProperty, "AppتثبيتUnselectedColor")
+                $this.SetResourceReference([Windows.Controls.Control]::BackgroundProperty, "AppInstallUnselectedColor")
             }
         })
         $border.Add_MouseRightButtonUp({
-            # تخزين التطبيق المحدد في متغيّر عام ليُستخدم في النافذة المنبثقة
+            # Store the selected app in a global variable so it can be used in the popup
             $sync.appPopupSelectedApp = $this.Tag
-            # ضبط موضع النافذة المنبثقة على موضع المؤشر الحالي
+            # Set the popup position to the current mouse position
             $sync.appPopup.PlacementTarget = $this
             $sync.appPopup.IsOpen = $true
         })
 
         $checkBox = New-Object Windows.Controls.CheckBox
-        # تنظيف الاسم لاستخدامه في WPF
+        # Sanitize the name for WPF
         $checkBox.Name = $appKey -replace '-', '_'
-        # تخزين مفتاح التطبيق الأصلي في Tag
+        # Store the original appKey in Tag
         $checkBox.Tag = $appKey
         $checkbox.Style = $sync.Form.Resources.AppEntryCheckboxStyle
-        # خانة الاختيار داخل شبكة التخطيط، لذا الحدود ترتفع مستوىً أعلى
+        # The checkbox sits inside the entry layout Grid, so the border is one level further up
         $checkbox.Add_Checked({
             Invoke-WPFSelectedCheckboxesUpdate -type "Add" -checkboxName $this.Tag
             $borderElement = $this.Parent.Parent
-            $borderElement.SetResourceReference([Windows.Controls.Control]::BackgroundProperty, "AppتثبيتSelectedColor")
+            $borderElement.SetResourceReference([Windows.Controls.Control]::BackgroundProperty, "AppInstallSelectedColor")
         })
 
         $checkbox.Add_Unchecked({
             Invoke-WPFSelectedCheckboxesUpdate -type "Remove" -checkboxName $this.Tag
             $borderElement = $this.Parent.Parent
-            $borderElement.SetResourceReference([Windows.Controls.Control]::BackgroundProperty, "AppتثبيتUnselectedColor")
+            $borderElement.SetResourceReference([Windows.Controls.Control]::BackgroundProperty, "AppInstallUnselectedColor")
         })
 
         $contentPanel = New-Object Windows.Controls.StackPanel
@@ -1035,22 +1035,22 @@ function Initialize-تثبيتAppEntry {
         }
         [void]$contentPanel.Children.Add($icon)
 
-        # إنشاء TextBlock لاسم التطبيق
+        # Create the TextBlock for the application name
         $appName = New-Object Windows.Controls.TextBlock
         $appName.Style = $sync.Form.Resources.AppEntryNameStyle
         $appName.Text = $app.content
         [void]$contentPanel.Children.Add($appName)
         $checkBox.Content = $contentPanel
 
-        # إضافة خصائص إمكانية الوصول لجعل العناصر متوافقة مع قارئات الشاشة
+        # Add accessibility properties to make the elements screen reader friendly
         $checkBox.SetValue([Windows.Automation.AutomationProperties]::NameProperty, $app.content)
         $border.SetValue([Windows.Automation.AutomationProperties]::NameProperty, $app.content)
 
-        # الحفاظ على نفس التخطيط لكل إدخال ليتمكن معالج الخانة من الوصول للحدود
+        # Keep the same layout for every entry so the checkbox handlers can reach the border
         $entryLayout = New-Object Windows.Controls.Grid
         [void]$entryLayout.Children.Add($checkBox)
 
-        # وضع شارة ركنية لتطبيقات FOSS تندمج مع حشو الحدود لتقع على الحافة
+        # Mark FOSS apps with a corner badge, bled into the border padding so it sits on the edge
         if ($app.foss -eq $true) {
             $fossBadge = New-WinUtilFossBadge
             $fossBadge.HorizontalAlignment = "Right"
@@ -1063,22 +1063,22 @@ function Initialize-تثبيتAppEntry {
         if ($sync.selectedApps -contains $appKey) {
             $checkBox.IsChecked = $true
         }
-        # إضافة الحدود إلى الفئة المقابلة
+        # Add the border to the corresponding Category
         $TargetElement.Children.Add($border) | Out-Null
         return $checkbox
     }
 
-function Initialize-تثبيتCategoryAppList {
+function Initialize-InstallCategoryAppList {
     <#
-        .ملخص
-            يمسح العنصر المستهدف ويضبط رسالة "جارٍ التحميل". هذا ضروري لأن تحميل جميع التطبيقات قد يستغرق بعض الوقت في بعض السيناريوهات
-            يتكرر على جميع الفئات والتطبيقات ويضيفها لواجهة المستخدم
-            يُستخدم كجزء من إنشاء واجهة تبويب التثبيت
-        .معامل TargetElement
-            العنصر الذي ستوضع فيه الفئات والتطبيقات
-        .معامل Apps
-            جدول التجزئة للتطبيقات المراد إضافتها لواجهة المستخدم
-            الفئات تُستخرج أيضاً من جدول التجزئة
+        .SYNOPSIS
+            Clears the Target Element and sets up a "Loading" message. This is done, because loading of all apps can take a bit of time in some scenarios
+            Iterates through all Categories and Apps and adds them to the UI
+            Used to as part of the Install Tab UI generation
+        .PARAMETER TargetElement
+            The Element into which the Categories and Apps should be placed
+        .PARAMETER Apps
+            The Hashtable of Apps to be added to the UI
+            The Categories are also extracted from the Apps Hashtable
 
     #>
         param(
@@ -1086,7 +1086,7 @@ function Initialize-تثبيتCategoryAppList {
             $Apps
         )
 
-        # تجميع التطبيقات مسبقاً حسب الفئة قبل إنشاء عناصر WPF.
+        # Pre-group apps by category before creating WPF controls.
         $appsByCategory = @{}
         foreach ($appKey in $Apps.Keys) {
             $category = $Apps.$appKey.Category
@@ -1095,7 +1095,7 @@ function Initialize-تثبيتCategoryAppList {
             }
             $appsByCategory[$category] += $appKey
         }
-        $sync.تثبيتAppRenderQueue = [System.Collections.Queue]::new()
+        $sync.InstallAppRenderQueue = [System.Collections.Queue]::new()
 
         foreach ($category in $($appsByCategory.Keys | Sort-Object)) {
             # Create a container for category label + apps
@@ -1105,13 +1105,13 @@ function Initialize-تثبيتCategoryAppList {
             $categoryContainer.HorizontalAlignment = [Windows.HorizontalAlignment]::Stretch
             [System.Windows.Automation.AutomationProperties]::SetName($categoryContainer, $Category)
 
-            # ربط العرض بالعرض الفعلي لـ ItemsControl لإجبار تخطيط الصف الكامل في WrapPanel
+            # Bind Width to the ItemsControl's ActualWidth to force full-row layout in WrapPanel
             $binding = New-Object Windows.Data.Binding
             $binding.Path = New-Object Windows.PropertyPath("ActualWidth")
             $binding.RelativeSource = New-Object Windows.Data.RelativeSource([Windows.Data.RelativeSourceMode]::FindAncestor, [Windows.Controls.ItemsControl], 1)
             [void][Windows.Data.BindingOperations]::SetBinding($categoryContainer, [Windows.FrameworkElement]::WidthProperty, $binding)
 
-            # إضافة تسمية الفئة إلى الحاوية
+            # Add category label to container
             $toggleButton = New-Object Windows.Controls.Label
             $toggleButton.Content = "- $Category"
             $toggleButton.Tag = "CategoryToggleButton"
@@ -1122,29 +1122,29 @@ function Initialize-تثبيتCategoryAppList {
             $toggleButton.HorizontalAlignment = [Windows.HorizontalAlignment]::Stretch
             $sync.$Category = $toggleButton
 
-            # إضافة معالج النقر لتبديل ظهور الفئة
+            # Add click handler to toggle category visibility
             $toggleButton.Add_MouseLeftButtonUp({
                 param($categoryToggle)
 
-                # البحث عن StackPanel الأب (حاوية الفئة)
+                # Find the parent StackPanel (categoryContainer)
                 $categoryContainer = $categoryToggle.Parent
                 if ($categoryContainer -and $categoryContainer.Children.Count -ge 2) {
-                    # WrapPanel هو العنصر الثاني
+                    # The WrapPanel is the second child
                     $wrapPanel = $categoryContainer.Children[1]
 
-                    # النقر المباشر يتغلب على أي توسيع تلقائي بسبب التصفية
+                    # An explicit click wins over anything filtering expanded automatically
                     if ($sync.AppCategoryAutoExpanded) {
                         $sync.AppCategoryAutoExpanded.Remove(($categoryToggle.Content -replace '^[+-] ', ''))
                     }
 
-                    # تبديل الظهور
+                    # Toggle visibility
                     if ($wrapPanel.Visibility -eq [Windows.Visibility]::Visible) {
                         $wrapPanel.Visibility = [Windows.Visibility]::Collapsed
-                        # تغيير - إلى +
+                        # Change - to +
                         $categoryToggle.Content = $categoryToggle.Content -replace "^- ", "+ "
                     } else {
                         $wrapPanel.Visibility = [Windows.Visibility]::Visible
-                        # تغيير + إلى -
+                        # Change + to -
                         $categoryToggle.Content = $categoryToggle.Content -replace "^\+ ", "- "
                     }
                 }
@@ -1152,7 +1152,7 @@ function Initialize-تثبيتCategoryAppList {
 
             $null = $categoryContainer.Children.Add($toggleButton)
 
-            # إضافة لوح التفاف للتطبيقات إلى الحاوية
+            # Add wrap panel for apps to container
             $wrapPanel = New-Object Windows.Controls.WrapPanel
             $wrapPanel.Orientation = "Horizontal"
             $wrapPanel.HorizontalAlignment = "Left"
@@ -1163,17 +1163,17 @@ function Initialize-تثبيتCategoryAppList {
 
             $null = $categoryContainer.Children.Add($wrapPanel)
 
-            # إضافة حاوية الفئة الكاملة إلى العنصر المستهدف
+            # Add the entire category container to the target element
             $null = $TargetElement.Items.Add($categoryContainer)
 
-            $sync.تثبيتAppRenderQueue.Enqueue([pscustomobject]@{
+            $sync.InstallAppRenderQueue.Enqueue([pscustomobject]@{
                 Category = $category
                 TargetElement = $wrapPanel
                 AppKeys = @($appsByCategory[$category] | Sort-Object)
             })
         }
 
-        Start-WinUtilتثبيتAppRendering
+        Start-WinUtilInstallAppRendering
     }
 
 function Initialize-WinUtilRunspacePool {
@@ -1182,13 +1182,13 @@ function Initialize-WinUtilRunspacePool {
     }
 
     if ($sync.runspace) {
-        إغلاق-WinUtilRunspacePool
+        Close-WinUtilRunspacePool
     }
 
-    # تعيين الحد الأقصى لخيوط RunspacePool ليساوي عدد خيوط الجهاز.
+    # Set the maximum number of threads for the RunspacePool to the number of threads on the machine.
     $maxthreads = [Math]::Max([int]$env:NUMBER_OF_PROCESSORS, 1)
 
-    # إنشاء حالة جلسة جديدة لتمرير المتغيّرات إلى مساحة التشغيل.
+    # Create a new session state for parsing variables into our runspace.
     $hashVars = New-Object System.Management.Automation.Runspaces.SessionStateVariableEntry -ArgumentList 'sync', $sync, $null
     $offlineVar = New-Object System.Management.Automation.Runspaces.SessionStateVariableEntry -ArgumentList 'PARAM_OFFLINE', $PARAM_OFFLINE, $null
     $initialSessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
@@ -1196,7 +1196,7 @@ function Initialize-WinUtilRunspacePool {
     $initialSessionState.Variables.Add($hashVars)
     $initialSessionState.Variables.Add($offlineVar)
 
-    # الحصول على كل دوال WinUtil/WPF وإضافتها إلى حالة الجلسة.
+    # Get every WinUtil/WPF function and add it to the session state.
     $functions = Get-ChildItem function:\ | Where-Object { $_.Name -imatch 'winutil|WPF' }
     foreach ($function in $functions) {
         $functionDefinition = Get-Content function:\$($function.Name)
@@ -1205,10 +1205,10 @@ function Initialize-WinUtilRunspacePool {
     }
 
     $sync.runspace = [runspacefactory]::CreateRunspacePool(
-        1,                      # الحد الأدنى لعدد الخيوط
-        $maxthreads,            # الحد الأقصى لعدد الخيوط
-        $initialSessionState,   # حالة الجلسة الابتدائية
-        $Host                   # الجهاز الذي تُنشأ عليه مساحات التشغيل
+        1,                      # Minimum thread count
+        $maxthreads,            # Maximum thread count
+        $initialSessionState,   # Initial session state
+        $Host                   # Machine to create runspaces on
     )
 
     $sync.runspace.Open()
@@ -1230,18 +1230,18 @@ function Initialize-WinUtilTabContent {
     }
 
     switch ($TabName) {
-        "تثبيت" {
+        "Install" {
             Initialize-WPFUI -targetGridName "appscategory"
 
             Initialize-WPFUI -targetGridName "appspanel"
         }
-        "التعديلات" {
+        "Tweaks" {
             Invoke-WPFUIElements -configVariable $sync.configs.tweaks -targetGridName "tweakspanel" -columncount 2
         }
-        "الإعداد" {
+        "Config" {
             Invoke-WPFUIElements -configVariable $sync.configs.feature -targetGridName "featurespanel" -columncount 2
         }
-        "إزالة تطبيقات النظام" {
+        "AppX" {
             Invoke-WPFUIElements -configVariable $sync.configs.appx -targetGridName "appxpanel" -columncount 2
         }
         "Win11ISO" {
@@ -1253,8 +1253,8 @@ function Initialize-WinUtilTabContent {
 
     $sync.InitializedTabs[$TabName] = $true
 
-    # مزامنة العناصر المبنية حديثاً مع أي تحديدات موجودة في $sync.selected* (import/preset).
-    إعادة ضبط-WPFCheckBoxes -doToggles $true
+    # Sync freshly built controls to any selections already in $sync.selected* (import/preset).
+    Reset-WPFCheckBoxes -doToggles $true
 }
 
 function Initialize-WinUtilTaskbarOverlayAssets {
@@ -1276,17 +1276,17 @@ function Initialize-WinUtilTaskbarOverlayAssets {
     }
 }
 
-function تثبيت-WinUtilAPPX {
+function Install-WinUtilAPPX {
     <#
 
-    .ملخص
-        يُسجّل حزمة إزالة تطبيقات النظام محلية أو يثبّتها من Microsoft Store
+    .SYNOPSIS
+        Registers a local AppX package or installs it from the Microsoft Store
 
-    .معامل Name
-        The اسم حزمة إزالة تطبيقات النظام للتثبيت
+    .PARAMETER Name
+        The AppX package name to install
 
-    .معامل StoreId
-        معرّف منتج Microsoft Store الاختياري عند عدم توفر مانيفست محلي
+    .PARAMETER StoreId
+        The optional Microsoft Store product ID used when no local manifest is available
 
     #>
     param (
@@ -1296,27 +1296,27 @@ function تثبيت-WinUtilAPPX {
         [string]$StoreId
     )
 
-    Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "جارٍ تثبيت حزمة إزالة تطبيقات النظام: $Name"
+    Write-WinUtilLog -Component "AppX" -Message "Installing AppX package: $Name"
 
-    # أوامر إزالة تطبيقات النظام و DISM أكثر موثوقية في Windows PowerShell 5.1. Query both installed and
+    # AppX and DISM cmdlets are more reliable in Windows PowerShell 5.1. Query both installed and
     # provisioned package metadata because either can expose a local manifest that can be registered.
     $ps5Command = {
         $packageName = $args[0]
         $manifestPaths = [System.Collections.Generic.List[string]]::new()
 
-        Get-AppxPackage -الكلUsers -Name $packageName -ErrorAction SilentlyContinue |
+        Get-AppxPackage -AllUsers -Name $packageName -ErrorAction SilentlyContinue |
             Sort-Object -Property Version -Descending |
             ForEach-Object {
-                if (-not [string]::IsNullOrWhiteSpace($_.تثبيتLocation)) {
-                    $manifestPaths.Add((Join-Path $_.تثبيتLocation "AppxManifest.xml"))
+                if (-not [string]::IsNullOrWhiteSpace($_.InstallLocation)) {
+                    $manifestPaths.Add((Join-Path $_.InstallLocation "AppxManifest.xml"))
                 }
             }
 
         Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue |
             Where-Object DisplayName -EQ $packageName |
             ForEach-Object {
-                if (-not [string]::IsNullOrWhiteSpace($_.تثبيتLocation)) {
-                    $manifestPaths.Add((Join-Path $_.تثبيتLocation "AppxManifest.xml"))
+                if (-not [string]::IsNullOrWhiteSpace($_.InstallLocation)) {
+                    $manifestPaths.Add((Join-Path $_.InstallLocation "AppxManifest.xml"))
                 }
             }
 
@@ -1326,7 +1326,7 @@ function تثبيت-WinUtilAPPX {
             Select-Object -First 1
 
         if ($null -ne $manifestPath) {
-            Add-AppxPackage -Register $manifestPath -DisableالتطويرMode -ErrorAction Stop
+            Add-AppxPackage -Register $manifestPath -DisableDevelopmentMode -ErrorAction Stop
             Write-Output $manifestPath
         }
     }
@@ -1335,28 +1335,28 @@ function تثبيت-WinUtilAPPX {
     if ($LASTEXITCODE -eq 0 -and $null -ne $manifestOutput) {
         $manifestPath = ($manifestOutput | Select-Object -Last 1).ToString().Trim()
         if (-not [string]::IsNullOrWhiteSpace($manifestPath)) {
-            Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "تمّ تسجيل مانيفست إزالة تطبيقات النظام المحلي لـ $Name`: $manifestPath"
+            Write-WinUtilLog -Component "AppX" -Message "Registered local AppX manifest for $Name`: $manifestPath"
             return
         }
     }
 
     if ($LASTEXITCODE -ne 0) {
         $failureDetails = ($manifestOutput | Out-String).Trim()
-        Write-WinUtilLog -Level "WARN" -Component "إزالة تطبيقات النظام" -Message "فشل تسجيل إزالة تطبيقات النظام المحلي لـ $Name`: $failureDetails"
+        Write-WinUtilLog -Level "WARN" -Component "AppX" -Message "Local AppX registration failed for $Name`: $failureDetails"
     }
 
     if ([string]::IsNullOrWhiteSpace($StoreId)) {
-        $errorMessage = "تعذّر تثبيت $Name لأنه لا يتوفر مانيفست محلي أو معرّف Microsoft Store."
-        Write-WinUtilLog -Level "ERROR" -Component "إزالة تطبيقات النظام" -Message $errorMessage
+        $errorMessage = "Unable to install $Name because no local manifest or Microsoft Store ID is available."
+        Write-WinUtilLog -Level "ERROR" -Component "AppX" -Message $errorMessage
         throw $errorMessage
     }
 
-    Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "لم يُعثر على مانيفست محلي صالح لـ $Name. جارٍ تثبيت منتج Microsoft Store $StoreId."
-    تثبيت-WinUtilWinget
-    تثبيت-WinUtilProgramWinget -Action تثبيت -Programs @("msstore:$StoreId")
+    Write-WinUtilLog -Component "AppX" -Message "No usable local manifest found for $Name. Installing Microsoft Store product $StoreId."
+    Install-WinUtilWinget
+    Install-WinUtilProgramWinget -Action Install -Programs @("msstore:$StoreId")
 }
 
-function تثبيت-WinUtilChoco {
+function Install-WinUtilChoco {
     if (-not (Get-Command -Name choco)) {
       Write-Host "Chocolatey غير مثبّت. جارٍ التثبيت..."
       $installScript = Invoke-WebRequest -Uri https://community.chocolatey.org/install.ps1 -UseBasicParsing
@@ -1364,31 +1364,31 @@ function تثبيت-WinUtilChoco {
     }
 }
 
-function تثبيت-WinUtilProgramChoco {
+function Install-WinUtilProgramChoco {
     param (
         [Parameter(Mandatory=$true)]
-        [ValidateSet("تثبيت", "Uninstall")]
+        [ValidateSet("Install", "Uninstall")]
         [string]$Action,
 
         [Parameter(Mandatory=$true)]
         [string[]]$Programs
     )
 
-    if ($Action -eq 'تثبيت') {
+    if ($Action -eq 'Install') {
         $arguments = "install $Programs -y"
     } else {
         $arguments = "uninstall $Programs -y"
     }
 
-    Write-WinUtilLog -Component "Package" -Message "$Action حزمة/حزم choco: $($Programs -join ', ')"
+    Write-WinUtilLog -Component "Package" -Message "$Action choco package(s): $($Programs -join ', ')"
     $process = Start-Process -FilePath choco -ArgumentList $arguments -NoNewWindow -Wait -PassThru
-    Write-WinUtilLog -Component "Package" -Message "$Action اكتملت حزمة/حزم choco: $($Programs -join ', ') (رمز الخروج: $($process.ExitCode))"
+    Write-WinUtilLog -Component "Package" -Message "$Action choco package(s) completed: $($Programs -join ', ') (exit code: $($process.ExitCode))"
 }
 
-Function تثبيت-WinUtilProgramWinget {
+Function Install-WinUtilProgramWinget {
     param (
         [Parameter(Mandatory=$true)]
-        [ValidateSet("تثبيت", "Uninstall")]
+        [ValidateSet("Install", "Uninstall")]
         [string]$Action,
 
         [Parameter(Mandatory=$true)]
@@ -1406,26 +1406,26 @@ Function تثبيت-WinUtilProgramWinget {
             $program = $program.Substring("msstore:".Length)
         }
 
-        if ($Action -eq 'تثبيت') {
+        if ($Action -eq 'Install') {
             $arguments = @("install", "--id", $program, "--accept-package-agreements", "--accept-source-agreements", "--source", $source, "--silent")
         } else {
             $arguments = @("uninstall", "--id", $program, "--source", $source, "--silent")
         }
 
-        Write-WinUtilLog -Component "Package" -Message "$Action حزمة winget: $program (المصدر: $source)"
+        Write-WinUtilLog -Component "Package" -Message "$Action winget package: $program (source: $source)"
         $process = Start-Process -FilePath winget -ArgumentList $arguments -NoNewWindow -Wait -PassThru
-        Write-WinUtilLog -Component "Package" -Message "$Action اكتملت حزمة winget: $program (رمز الخروج: $($process.ExitCode))"
+        Write-WinUtilLog -Component "Package" -Message "$Action winget package completed: $program (exit code: $($process.ExitCode))"
     }
 }
 
-function تثبيت-WinUtilWinget {
+function Install-WinUtilWinget {
     <#
 
-    .ملخص
-        يثبّت WinGet إذا لم يكن مثبّتاً.
+    .SYNOPSIS
+        Installs WinGet if not already installed.
 
-    .وصف
-        يثبّت WinGet إذا لزم الأمر
+    .DESCRIPTION
+        installs winGet if needed
     #>
     if ((Test-WinUtilPackageManager -winget) -eq "installed") {
         return
@@ -1433,21 +1433,21 @@ function تثبيت-WinUtilWinget {
 
     Write-Host "WinGet غير مثبّت. جارٍ التثبيت..." -ForegroundColor Red
 
-    تثبيت-PackageProvider -Name NuGet -Force
-    تثبيت-Module -Name Microsoft.WinGet.Client -Force
-    Repair-WinGetPackageManager -الكلUsers
+    Install-PackageProvider -Name NuGet -Force
+    Install-Module -Name Microsoft.WinGet.Client -Force
+    Repair-WinGetPackageManager -AllUsers
 }
 
 function Invoke-WinUtilAppCategoryChip {
     <#
-        .ملخص
-            يعالج النقر على شريحة فئة في تبويب التثبيت
+        .SYNOPSIS
+            Handles a click on an Install tab category chip
 
-        .وصف
+        .DESCRIPTION
             The chip carries its category in Tag, so every chip shares this handler. Holding ctrl
             adds the category to the current selection instead of replacing it.
 
-        .معامل Chip
+        .PARAMETER Chip
             The chip that was clicked
     #>
     param(
@@ -1477,20 +1477,20 @@ function Invoke-WinUtilAssets {
       }
   }
 
-  # إنشاء Viewbox وضبط حجمه
+  # Create the Viewbox and set its size
   $LogoViewbox = New-Object Windows.Controls.Viewbox
   $LogoViewbox.Width = $Size
   $LogoViewbox.Height = $Size
 
-  # إنشاء Canvas لاحتواء المسارات
+  # Create a Canvas to hold the paths
   $canvas = New-Object Windows.Controls.Canvas
   $canvas.Width = 100
   $canvas.Height = 100
 
-  # تحديد عامل تحجيم للمحتوى داخل Canvas
+  # Define a scale factor for the content inside the Canvas
   $scaleFactor = $Size / 100
 
-  # تطبيق تحويل تحجيم على محتوى Canvas
+  # Apply a scale transform to the Canvas content
   $scaleTransform = New-Object Windows.Media.ScaleTransform($scaleFactor, $scaleFactor)
   $canvas.LayoutTransform = $scaleTransform
 
@@ -1563,19 +1563,19 @@ C 21.36,47.14 28.67,50.71 30.01,52.63
           $scaleTransform = New-Object Windows.Media.ScaleTransform($scaleFactor, $scaleFactor)
           $canvas.LayoutTransform = $scaleTransform
 
-          # تعريف مسار الدائرة
+          # Define the circle path
           $circlePathData = "M 1.27,0 A 1.27,1.27 0 1,0 1.27,2.54 A 1.27,1.27 0 1,0 1.27,0"
           $circlePath = New-Object Windows.Shapes.Path
           $circlePath.Data = [Windows.Media.Geometry]::Parse($circlePathData)
           $circlePath.Fill = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#39ba00")
 
-          # تعريف مسار علامة الصح
+          # Define the checkmark path
           $checkmarkPathData = "M 0.873 1.89 L 0.41 1.391 A 0.17 0.17 0 0 1 0.418 1.151 A 0.17 0.17 0 0 1 0.658 1.16 L 1.016 1.543 L 1.583 1.013 A 0.17 0.17 0 0 1 1.599 1 L 1.865 0.751 A 0.17 0.17 0 0 1 2.105 0.759 A 0.17 0.17 0 0 1 2.097 0.999 L 1.282 1.759 L 0.999 2.022 L 0.874 1.888 Z"
           $checkmarkPath = New-Object Windows.Shapes.Path
           $checkmarkPath.Data = [Windows.Media.Geometry]::Parse($checkmarkPathData)
           $checkmarkPath.Fill = [Windows.Media.Brushes]::White
 
-          # إضافة المسارات إلى Canvas
+          # Add the paths to the Canvas
           $canvas.Children.Add($circlePath) | Out-Null
           $canvas.Children.Add($checkmarkPath) | Out-Null
       }
@@ -1583,18 +1583,18 @@ C 21.36,47.14 28.67,50.71 30.01,52.63
           $canvas.Width = 512
           $canvas.Height = 512
 
-          # تحديد عامل تحجيم للمحتوى داخل Canvas
-          $scaleFactor = $Size / 512  # ضبط التحجيم بناءً على حجم Canvas
+          # Define a scale factor for the content inside the Canvas
+          $scaleFactor = $Size / 512  # Adjust scaling based on the canvas size
           $scaleTransform = New-Object Windows.Media.ScaleTransform($scaleFactor, $scaleFactor)
           $canvas.LayoutTransform = $scaleTransform
 
-          # تعريف مسار الدائرة
+          # Define the circle path
           $circlePathData = "M 256,0 A 256,256 0 1,0 256,512 A 256,256 0 1,0 256,0"
           $circlePath = New-Object Windows.Shapes.Path
           $circlePath.Data = [Windows.Media.Geometry]::Parse($circlePathData)
           $circlePath.Fill = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#f41b43")
 
-          # تعريف مسار علامة التعجب
+          # Define the exclamation mark path
           $exclamationPathData = "M 256 307.2 A 35.89 35.89 0 0 1 220.14 272.74 L 215.41 153.3 A 35.89 35.89 0 0 1 251.27 116 H 260.73 A 35.89 35.89 0 0 1 296.59 153.3 L 291.86 272.74 A 35.89 35.89 0 0 1 256 307.2 Z"
           $exclamationPath = New-Object Windows.Shapes.Path
           $exclamationPath.Data = [Windows.Media.Geometry]::Parse($exclamationPathData)
@@ -1620,7 +1620,7 @@ C 21.36,47.14 28.67,50.71 30.01,52.63
           $roundedRectangle.SetValue([Windows.Controls.Canvas]::LeftProperty, $centerX)
           $roundedRectangle.SetValue([Windows.Controls.Canvas]::TopProperty, 324.34)
 
-          # إضافة المسارات إلى Canvas
+          # Add the paths to the Canvas
           $canvas.Children.Add($circlePath) | Out-Null
           $canvas.Children.Add($exclamationPath) | Out-Null
           $canvas.Children.Add($roundedRectangle) | Out-Null
@@ -1681,10 +1681,10 @@ Function Invoke-WinUtilCurrentSystem {
 
     <#
 
-    .ملخص
+    .SYNOPSIS
         Checks to see what tweaks have already been applied and what programs are installed, and checks the according boxes
 
-    .مثال
+    .EXAMPLE
         InvokeWinUtilCurrentSystem -Checkbox "winget"
 
     #>
@@ -1734,8 +1734,8 @@ Function Invoke-WinUtilCurrentSystem {
 
         $sync.configs.tweaks | Get-Member -MemberType NoteProperty | ForEach-Object {
 
-            $الإعداد = $psitem.Name
-            $entry = $sync.configs.tweaks.$الإعداد
+            $Config = $psitem.Name
+            $entry = $sync.configs.tweaks.$Config
             $registryKeys = $entry.registry
             $serviceKeys = $entry.service
             $entryType = $entry.Type
@@ -1744,7 +1744,7 @@ Function Invoke-WinUtilCurrentSystem {
                 $Values = @()
 
                 if ($entryType -eq "Toggle") {
-                    if (-not (Get-WinUtilToggleStatus $الإعداد)) {
+                    if (-not (Get-WinUtilToggleStatus $Config)) {
                         $values += $False
                     }
                 } else {
@@ -1800,7 +1800,7 @@ Function Invoke-WinUtilCurrentSystem {
                 }
 
                 if ($values -notcontains $false) {
-                    Write-Output $الإعداد
+                    Write-Output $Config
                 }
             }
         }
@@ -1809,8 +1809,8 @@ Function Invoke-WinUtilCurrentSystem {
 
 function Invoke-WinUtilExplorerUpdate {
      <#
-    .ملخص
-        تحديثes the Windows Explorer
+    .SYNOPSIS
+        Refreshes the Windows Explorer
     #>
     param (
         [string]$action = "refresh"
@@ -1824,7 +1824,7 @@ function Invoke-WinUtilExplorerUpdate {
 using System;
 using System.Runtime.InteropServices;
 public class Win32 {
-    [Dllاستيراد("user32.dll", CharSet = CharSet.Auto, SetLastError = false)]
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = false)]
     public static extern IntPtr SendMessageTimeout(
         IntPtr hWnd, uint Msg, IntPtr wParam, string lParam,
         uint fuFlags, uint uTimeout, out IntPtr lpdwResult);
@@ -1846,21 +1846,21 @@ public class Win32 {
     }
 }
 
-function Invoke-WinUtilFeatureتثبيت ($CheckBox) {
-    Write-WinUtilLog -Component "Feature" -Message "تطبيقing feature action: $CheckBox"
+function Invoke-WinUtilFeatureInstall ($CheckBox) {
+    Write-WinUtilLog -Component "Feature" -Message "Applying feature action: $CheckBox"
 
     if ($sync.configs.feature.$CheckBox.feature) {
         foreach ($feature in $sync.configs.feature.$CheckBox.feature) {
-            Write-Host "جارٍ التثبيت: $feature"
+            Write-Host "Installing $feature"
             Write-WinUtilLog -Component "Feature" -Message "Enabling Windows optional feature: $feature"
-            Enable-WindowsOptionalFeature -Online -FeatureName $feature -الكل -NoRestart -ErrorAction Stop
+            Enable-WindowsOptionalFeature -Online -FeatureName $feature -All -NoRestart -ErrorAction Stop
             Write-WinUtilLog -Component "Feature" -Message "Enabled Windows optional feature: $feature"
         }
     }
 
     if ($sync.configs.feature.$CheckBox.InvokeScript) {
         foreach ($script in $sync.configs.feature.$CheckBox.InvokeScript) {
-            Write-Host "جارٍ تشغيل السكريبت لـ $CheckBox"
+            Write-Host "Running Script for $CheckBox"
             Write-WinUtilLog -Component "Feature" -Message "Running feature script for: $CheckBox"
             Invoke-Command -ScriptBlock ([scriptblock]::Create($script)) -ErrorAction Stop
             Write-WinUtilLog -Component "Feature" -Message "Completed feature script for: $CheckBox"
@@ -1872,14 +1872,14 @@ function Invoke-WinUtilFeatureتثبيت ($CheckBox) {
 function Invoke-WinUtilFontScaling {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Applies UI and font scaling for accessibility
 
-    .معامل ScaleFactor
+    .PARAMETER ScaleFactor
         Sets the scaling from 0.75 and 2.0.
-        افتراضي is 1.0 (100% - no scaling)
+        Default is 1.0 (100% - no scaling)
 
-    .مثال
+    .EXAMPLE
         Invoke-WinUtilFontScaling -ScaleFactor 1.25
         # Applies 125% scaling
     #>
@@ -1901,16 +1901,16 @@ function Invoke-WinUtilFontScaling {
         "ButtonFontSize",
         "HeaderFontSize",
         "TabButtonFontSize",
-        "الإعدادTabButtonFontSize",
+        "ConfigTabButtonFontSize",
         "IconFontSize",
-        "الإعداداتIconFontSize",
-        "إغلاقIconFontSize",
+        "SettingsIconFontSize",
+        "CloseIconFontSize",
         "AppEntryFontSize",
         "SearchBarTextBoxFontSize",
         "SearchBarClearButtonFontSize",
         "CustomDialogFontSize",
         "CustomDialogFontSizeHeader",
-        "الإعدادUpdateButtonFontSize",
+        "ConfigUpdateButtonFontSize",
         # Buttons and UI
         "CheckBoxBulletDecoratorSize",
         "ButtonWidth",
@@ -1927,7 +1927,7 @@ function Invoke-WinUtilFontScaling {
         "ToolTipWidth"
     )
 
-    # تطبيق scaling to each resource
+    # Apply scaling to each resource
     foreach ($resourceName in $fontResources) {
         try {
             # Get the default font size from the theme configuration
@@ -1941,7 +1941,7 @@ function Invoke-WinUtilFontScaling {
             }
         }
         catch {
-            Write-Warning "فشل تغيير حجم المورد $resourceName : $_"
+            Write-Warning "Failed to scale resource $resourceName : $_"
         }
     }
 
@@ -1955,16 +1955,16 @@ function Invoke-WinUtilFontScaling {
     }
 }
 
-function Invoke-WinUtilتثبيتPSProfile {
+function Invoke-WinUtilInstallPSProfile {
     if (-not (Get-Command wt)) {
-        Write-Host "Windows Terminal not found. جارٍ التثبيت:..."
-        تثبيت-WinUtilWinget
+        Write-Host "لم يُعثر على Windows Terminal. جارٍ التثبيت..."
+        Install-WinUtilWinget
         winget install Microsoft.WindowsTerminal --source winget --silent
     }
 
     if (-not (Get-Command pwsh)) {
-        Write-Host "PowerShell 7 not found. جارٍ التثبيت:..."
-        تثبيت-WinUtilWinget
+        Write-Host "لم يُعثر على PowerShell 7. جارٍ التثبيت..."
+        Install-WinUtilWinget
         winget install Microsoft.PowerShell --source winget --installer-type wix --silent
     }
 
@@ -1977,7 +1977,7 @@ function Write-WinUtilISOLog {
     $logLine = "[$ts] $Message"
     $sync["WPFWin11ISOStatusLog"].Dispatcher.Invoke([action]{
         $current = $sync["WPFWin11ISOStatusLog"].Text
-        if ($current -eq "جاهز. يُرجى اختيار ملف ISO لويندوز 11 للبدء.") {
+        if ($current -eq "Ready. Please select a Windows 11 ISO to begin.") {
             $sync["WPFWin11ISOStatusLog"].Text = $logLine
         } else {
             $sync["WPFWin11ISOStatusLog"].Text += "`n$logLine"
@@ -1987,12 +1987,12 @@ function Write-WinUtilISOLog {
     })
 }
 
-function Invoke-WinUtilISOاستعراض {
+function Invoke-WinUtilISOBrowse {
     Add-Type -AssemblyName System.Windows.Forms
 
     $dlg = [System.Windows.Forms.OpenFileDialog]::new()
     $dlg.Title            = "Select Windows 11 ISO"
-    $dlg.Filter           = "ISO files (*.iso)|*.iso|الكل files (*.*)|*.*"
+    $dlg.Filter           = "ISO files (*.iso)|*.iso|All files (*.*)|*.*"
     $dlg.InitialDirectory = [System.Environment]::GetFolderPath("Desktop")
 
     if ($dlg.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) { return }
@@ -2014,14 +2014,14 @@ function Invoke-WinUtilISOاستعراض {
 function Invoke-WinUtilISOMountAndVerify {
     $isoPath = $sync["WPFWin11ISOPath"].Text
 
-    if ([string]::IsNullOrWhiteSpace($isoPath) -or $isoPath -eq "لم يتم اختيار ISO...") {
+    if ([string]::IsNullOrWhiteSpace($isoPath) -or $isoPath -eq "No ISO selected...") {
         [System.Windows.MessageBox]::Show("Please select an ISO file first.", "No ISO Selected", "OK", "Warning")
         return
     }
 
     Write-WinUtilISOLog "Mounting ISO: $isoPath"
-    Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Mounting ISO..." -Percent 10
-    $sync["WPFWin11ISOاستعراضButton"].IsEnabled = $false
+    Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Mounting ISO..." -Percent 10
+    $sync["WPFWin11ISOBrowseButton"].IsEnabled = $false
     $sync["WPFWin11ISOMountButton"].IsEnabled = $false
     $sync["WPFWin11ISOModifyButton"].IsEnabled = $false
     $sync["Win11ISOProcessRunning"] = $true
@@ -2039,7 +2039,7 @@ function Invoke-WinUtilISOMountAndVerify {
             $driveLetter = (Get-DiskImage -ImagePath $isoPath | Get-Volume).DriveLetter + ":"
             Write-WinUtilISOLog "Mounted at drive $driveLetter"
 
-            Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Verifying ISO contents..." -Percent 30
+            Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Verifying ISO contents..." -Percent 30
 
             $wimPath = Join-Path $driveLetter "sources\install.wim"
             $esdPath = Join-Path $driveLetter "sources\install.esd"
@@ -2049,7 +2049,7 @@ function Invoke-WinUtilISOMountAndVerify {
                 Write-WinUtilISOLog "ERROR: install.wim/install.esd not found - not a valid Windows ISO."
                 Invoke-WPFUIThread {
                     [System.Windows.MessageBox]::Show(
-                        "This does not appear to be a valid Windows ISO.`n`ninstall.wim / install.esd غير موجود.",
+                        "This does not appear to be a valid Windows ISO.`n`ninstall.wim / install.esd was not found.",
                         "Invalid ISO", "OK", "Error")
                 }
                 return
@@ -2057,7 +2057,7 @@ function Invoke-WinUtilISOMountAndVerify {
 
             $activeWim = if (Test-Path $wimPath) { $wimPath } else { $esdPath }
 
-            Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Reading image metadata..." -Percent 55
+            Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Reading image metadata..." -Percent 55
             $imageInfo = Get-WindowsImage -ImagePath $activeWim | Select-Object ImageIndex, ImageName
 
             if (-not ($imageInfo | Where-Object { $_.ImageName -match "Windows 11" })) {
@@ -2096,7 +2096,7 @@ function Invoke-WinUtilISOMountAndVerify {
                 $sync["WPFWin11ISOModifyButton"].IsEnabled = $true
             }
 
-            Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "ISO verified" -Percent 100
+            Set-WinUtilTweaksProgressIndicator -Visible $true -Label "ISO verified" -Percent 100
             Write-WinUtilISOLog "ISO verified OK.  Editions found: $($imageInfo.Count)"
         } catch {
             $errorMessage = $_
@@ -2108,9 +2108,9 @@ function Invoke-WinUtilISOMountAndVerify {
             }
         } finally {
             Start-Sleep -Milliseconds 800
-            Set-WinUtilالتعديلاتProgressIndicator -Visible $false
+            Set-WinUtilTweaksProgressIndicator -Visible $false
             Invoke-WPFUIThread {
-                $sync["WPFWin11ISOاستعراضButton"].IsEnabled = $true
+                $sync["WPFWin11ISOBrowseButton"].IsEnabled = $true
                 $sync["WPFWin11ISOMountButton"].IsEnabled = $true
                 $sync["Win11ISOProcessRunning"] = $false
             }
@@ -2194,10 +2194,10 @@ function Invoke-WinUtilISOModify {
 
         function SetProgress($label, $pct) {
             $sync["WPFWin11ISOStatusLog"].Dispatcher.Invoke([action]{
-                $sync["WPFالتعديلاتProgressBar"].Visibility = "Visible"
-                $sync["WPFالتعديلاتProgressLabel"].Text      = $label
-                $sync["WPFالتعديلاتProgressLabel"].ToolTip   = $label
-                $sync["WPFالتعديلاتProgressValue"].Value     = [Math]::Max($pct, 5)
+                $sync["WPFTweaksProgressBar"].Visibility = "Visible"
+                $sync["WPFTweaksProgressLabel"].Text      = $label
+                $sync["WPFTweaksProgressLabel"].ToolTip   = $label
+                $sync["WPFTweaksProgressValue"].Value     = [Math]::Max($pct, 5)
             })
         }
 
@@ -2235,9 +2235,9 @@ function Invoke-WinUtilISOModify {
             Log "Creating working directory: $workDir"
             $isoContents = Join-Path $workDir "iso_contents"
             New-Item -ItemType Directory -Path $isoContents -Force
-            SetProgress "نسخing ISO contents..." 10
+            SetProgress "Copying ISO contents..." 10
 
-            Log "نسخing ISO contents from $driveLetter to $isoContents..."
+            Log "Copying ISO contents from $driveLetter to $isoContents..."
             & robocopy $driveLetter $isoContents /E /NFL /NDL /NJH /NJS
             Log "ISO contents copied."
             SetProgress "Preparing setup media..." 25
@@ -2250,7 +2250,7 @@ function Invoke-WinUtilISOModify {
             $selectedEditionId = Get-WinUtilEditionIdFromName -EditionName $selectedEditionName
 
             Log "Writing autounattend.xml and edition selection..."
-            Invoke-WinUtilISOScript -ISOContentsDir $isoContents -AutoUnattendXml $autounattendContent -InjectCurrentSystemDrivers $injectDrivers -تثبيتImagePath $localWim -تثبيتImageIndex $selectedWimIndex -تثبيتEditionId $selectedEditionId -Log { param($m) Log $m }
+            Invoke-WinUtilISOScript -ISOContentsDir $isoContents -AutoUnattendXml $autounattendContent -InjectCurrentSystemDrivers $injectDrivers -InstallImagePath $localWim -InstallImageIndex $selectedWimIndex -InstallEditionId $selectedEditionId -Log { param($m) Log $m }
 
             SetProgress "Preserving install image..." 70
             if ($injectDrivers) {
@@ -2300,10 +2300,10 @@ function Invoke-WinUtilISOModify {
             $sync["Win11ISOModifying"] = $false
             $sync["Win11ISOProcessRunning"] = $false
             $sync["WPFWin11ISOStatusLog"].Dispatcher.Invoke([action]{
-                $sync["WPFالتعديلاتProgressBar"].Visibility = "Collapsed"
-                $sync["WPFالتعديلاتProgressLabel"].Text      = ""
-                $sync["WPFالتعديلاتProgressLabel"].ToolTip   = ""
-                $sync["WPFالتعديلاتProgressValue"].Value     = 0
+                $sync["WPFTweaksProgressBar"].Visibility = "Collapsed"
+                $sync["WPFTweaksProgressLabel"].Text      = ""
+                $sync["WPFTweaksProgressLabel"].ToolTip   = ""
+                $sync["WPFTweaksProgressValue"].Value     = 0
                 $sync["WPFWin11ISOModifyButton"].IsEnabled = $true
                 if ($sync["WPFWin11ISOOutputSection"].Visibility -ne "Visible") {
                     $sync["WPFWin11ISOSelectSection"].Visibility = "Visible"
@@ -2344,24 +2344,24 @@ function Invoke-WinUtilISOCheckExistingWork {
     $modified = $existingWorkDir.LastWriteTime.ToString("yyyy-MM-dd HH:mm")
     Write-WinUtilISOLog "Existing working directory found: $($existingWorkDir.FullName)"
     Write-WinUtilISOLog "Last modified: $modified - Skipping Steps 1-3 and resuming at Step 4."
-    Write-WinUtilISOLog "Click 'Clean & إعادة ضبط' if you want to start over with a new ISO."
+    Write-WinUtilISOLog "Click 'Clean & Reset' if you want to start over with a new ISO."
 
     [System.Windows.MessageBox]::Show(
-        "A previous WinUtil ISO working directory was found:`n`n$($existingWorkDir.FullName)`n`n(Last modified: $modified)`n`nStep 4 (output options) has been restored so you can save the already-modified image.`n`nClick 'Clean & إعادة ضبط' in Step 4 if you want to start over.",
+        "A previous WinUtil ISO working directory was found:`n`n$($existingWorkDir.FullName)`n`n(Last modified: $modified)`n`nStep 4 (output options) has been restored so you can save the already-modified image.`n`nClick 'Clean & Reset' in Step 4 if you want to start over.",
         "Existing Work Found", "OK", "Info")
 }
 
-function Invoke-WinUtilISOCleanAndإعادة ضبط {
+function Invoke-WinUtilISOCleanAndReset {
     $workDir = $sync["Win11ISOWorkDir"]
 
     if ($workDir -and (Test-Path $workDir)) {
         $confirm = [System.Windows.MessageBox]::Show(
             "This will delete the temporary working directory:`n`n$workDir`n`nAnd reset the interface back to the start.`n`nContinue?",
-            "Clean & إعادة ضبط", "YesNo", "Warning")
+            "Clean & Reset", "YesNo", "Warning")
         if ($confirm -ne "Yes") { return }
     }
 
-    $sync["WPFWin11ISOCleanإعادة ضبطButton"].IsEnabled = $false
+    $sync["WPFWin11ISOCleanResetButton"].IsEnabled = $false
     $sync["Win11ISOProcessRunning"] = $true
 
     $runspace = [Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
@@ -2387,10 +2387,10 @@ function Invoke-WinUtilISOCleanAndإعادة ضبط {
 
         function SetProgress($label, $pct) {
             $sync["WPFWin11ISOStatusLog"].Dispatcher.Invoke([action]{
-                $sync["WPFالتعديلاتProgressBar"].Visibility = "Visible"
-                $sync["WPFالتعديلاتProgressLabel"].Text      = $label
-                $sync["WPFالتعديلاتProgressLabel"].ToolTip   = $label
-                $sync["WPFالتعديلاتProgressValue"].Value     = [Math]::Max($pct, 5)
+                $sync["WPFTweaksProgressBar"].Visibility = "Visible"
+                $sync["WPFTweaksProgressLabel"].Text      = $label
+                $sync["WPFTweaksProgressLabel"].ToolTip   = $label
+                $sync["WPFTweaksProgressValue"].Value     = [Math]::Max($pct, 5)
             })
         }
 
@@ -2455,8 +2455,8 @@ function Invoke-WinUtilISOCleanAndإعادة ضبط {
                 Log "No temp directory found - resetting UI."
             }
 
-            SetProgress "إعادة ضبطting UI..." 95
-            Log "إعادة ضبطting interface..."
+            SetProgress "Resetting UI..." 95
+            Log "Resetting interface..."
 
             $sync["WPFWin11ISOStatusLog"].Dispatcher.Invoke([action]{
                 $sync["Win11ISOWorkDir"]     = $null
@@ -2476,23 +2476,23 @@ function Invoke-WinUtilISOCleanAndإعادة ضبط {
                 $sync["WPFWin11ISOMountSection"].Visibility      = "Collapsed"
                 $sync["WPFWin11ISOSelectSection"].Visibility     = "Visible"
                 $sync["WPFWin11ISOModifyButton"].IsEnabled       = $true
-                $sync["WPFWin11ISOCleanإعادة ضبطButton"].IsEnabled   = $true
+                $sync["WPFWin11ISOCleanResetButton"].IsEnabled   = $true
 
-                $sync["WPFالتعديلاتProgressBar"].Visibility = "Collapsed"
-                $sync["WPFالتعديلاتProgressLabel"].Text      = ""
-                $sync["WPFالتعديلاتProgressLabel"].ToolTip   = ""
-                $sync["WPFالتعديلاتProgressValue"].Value     = 0
+                $sync["WPFTweaksProgressBar"].Visibility = "Collapsed"
+                $sync["WPFTweaksProgressLabel"].Text      = ""
+                $sync["WPFTweaksProgressLabel"].ToolTip   = ""
+                $sync["WPFTweaksProgressValue"].Value     = 0
 
                 $sync["WPFWin11ISOStatusLog"].Text   = "جاهز. يُرجى اختيار ملف ISO لويندوز 11 للبدء."
             })
         } catch {
-            Log "ERROR during Clean & إعادة ضبط: $_"
+            Log "ERROR during Clean & Reset: $_"
             $sync["WPFWin11ISOStatusLog"].Dispatcher.Invoke([action]{
-                $sync["WPFالتعديلاتProgressBar"].Visibility = "Collapsed"
-                $sync["WPFالتعديلاتProgressLabel"].Text      = ""
-                $sync["WPFالتعديلاتProgressLabel"].ToolTip   = ""
-                $sync["WPFالتعديلاتProgressValue"].Value     = 0
-                $sync["WPFWin11ISOCleanإعادة ضبطButton"].IsEnabled = $true
+                $sync["WPFTweaksProgressBar"].Visibility = "Collapsed"
+                $sync["WPFTweaksProgressLabel"].Text      = ""
+                $sync["WPFTweaksProgressLabel"].ToolTip   = ""
+                $sync["WPFTweaksProgressValue"].Value     = 0
+                $sync["WPFWin11ISOCleanResetButton"].IsEnabled = $true
             })
         } finally {
             $sync["Win11ISOProcessRunning"] = $false
@@ -2514,7 +2514,7 @@ function Get-WinUtilOSCDImgPath {
     }
 
     if (-not $oscdimg) {
-        # تثبيتation available through the current process PATH
+        # Installation available through the current process PATH
         $oscdimg = Get-Command oscdimg.exe -CommandType Application -ErrorAction SilentlyContinue |
                    Select-Object -First 1 -ExpandProperty Source
     }
@@ -2530,7 +2530,7 @@ function Get-WinUtilOSCDImgPath {
     return $oscdimg
 }
 
-function Invoke-WinUtilISOتصدير {
+function Invoke-WinUtilISOExport {
     $contentsDir = $sync["Win11ISOContentsDir"]
 
     if (-not $contentsDir -or -not (Test-Path $contentsDir)) {
@@ -2558,7 +2558,7 @@ function Invoke-WinUtilISOتصدير {
         Write-WinUtilISOLog "oscdimg.exe not found. Attempting to install via winget..."
         try {
             # First ensure winget is installed and operational
-            تثبيت-WinUtilWinget
+            Install-WinUtilWinget
 
             $winget = Get-Command winget
             $result = & $winget install -e --id Microsoft.OSCDIMG --accept-package-agreements --accept-source-agreements
@@ -2600,15 +2600,15 @@ function Invoke-WinUtilISOتصدير {
 
         function SetProgress($label, $pct) {
             $sync["WPFWin11ISOStatusLog"].Dispatcher.Invoke([action]{
-                $sync["WPFالتعديلاتProgressBar"].Visibility = "Visible"
-                $sync["WPFالتعديلاتProgressLabel"].Text      = $label
-                $sync["WPFالتعديلاتProgressLabel"].ToolTip   = $label
-                $sync["WPFالتعديلاتProgressValue"].Value     = [Math]::Max($pct, 5)
+                $sync["WPFTweaksProgressBar"].Visibility = "Visible"
+                $sync["WPFTweaksProgressLabel"].Text      = $label
+                $sync["WPFTweaksProgressLabel"].ToolTip   = $label
+                $sync["WPFTweaksProgressValue"].Value     = [Math]::Max($pct, 5)
             })
         }
 
         try {
-            Write-WinUtilISOLog "تصديرing to ISO: $outputISO"
+            Write-WinUtilISOLog "Exporting to ISO: $outputISO"
             SetProgress "Building ISO..." 10
 
             $bootData    = "2#p0,e,b`"$contentsDir\boot\etfsboot.com`"#pEF,e,b`"$contentsDir\efi\microsoft\boot\efisys.bin`""
@@ -2646,14 +2646,14 @@ function Invoke-WinUtilISOتصدير {
                 SetProgress "ISO exported" 100
                 Write-WinUtilISOLog "ISO exported successfully: $outputISO"
                 $sync["WPFWin11ISOStatusLog"].Dispatcher.Invoke([action]{
-                    [System.Windows.MessageBox]::Show("ISO exported successfully!`n`n$outputISO", "تصدير Complete", "OK", "Info")
+                    [System.Windows.MessageBox]::Show("ISO exported successfully!`n`n$outputISO", "Export Complete", "OK", "Info")
                 })
             } else {
                 Write-WinUtilISOLog "oscdimg exited with code $($proc.ExitCode)."
                 $sync["WPFWin11ISOStatusLog"].Dispatcher.Invoke([action]{
                     [System.Windows.MessageBox]::Show(
                         "oscdimg exited with code $($proc.ExitCode).`nCheck the status log for details.",
-                        "تصدير Error", "OK", "Error")
+                        "Export Error", "OK", "Error")
                 })
             }
         } catch {
@@ -2665,10 +2665,10 @@ function Invoke-WinUtilISOتصدير {
             Start-Sleep -Milliseconds 800
             $sync["Win11ISOProcessRunning"] = $false
             $sync["WPFWin11ISOStatusLog"].Dispatcher.Invoke([action]{
-                $sync["WPFالتعديلاتProgressBar"].Visibility = "Collapsed"
-                $sync["WPFالتعديلاتProgressLabel"].Text      = ""
-                $sync["WPFالتعديلاتProgressLabel"].ToolTip   = ""
-                $sync["WPFالتعديلاتProgressValue"].Value     = 0
+                $sync["WPFTweaksProgressBar"].Visibility = "Collapsed"
+                $sync["WPFTweaksProgressLabel"].Text      = ""
+                $sync["WPFTweaksProgressLabel"].ToolTip   = ""
+                $sync["WPFTweaksProgressValue"].Value     = 0
                 $sync["WPFWin11ISOChooseISOButton"].IsEnabled = $true
             })
         }
@@ -2679,51 +2679,51 @@ function Invoke-WinUtilISOتصدير {
 
 function Invoke-WinUtilISOScript {
     <#
-    .ملخص
+    .SYNOPSIS
         Prepares copied Windows setup media without modifying its install image.
 
-    .وصف
-        Stages WinUtil's إزالة تطبيقات النظام removal, registry tweaks, and scheduled-task cleanup
+    .DESCRIPTION
+        Stages WinUtil's AppX removal, registry tweaks, and scheduled-task cleanup
         in the answer file for first logon, writes sources\ei.cfg for the selected
         edition, and optionally adds current-system drivers to one install.wim index.
 
-    .معامل ISOContentsDir
+    .PARAMETER ISOContentsDir
         Root directory of the copied ISO contents.
 
-    .معامل AutoUnattendXml
+    .PARAMETER AutoUnattendXml
         Full XML content for autounattend.xml.
 
-    .معامل تثبيتEditionId
+    .PARAMETER InstallEditionId
         Windows setup EditionID for sources\ei.cfg, for example Professional or Core.
 
-    .معامل تثبيتImagePath
+    .PARAMETER InstallImagePath
         Copied install.wim to service when current-system driver injection is enabled.
 
-    .معامل تثبيتImageIndex
+    .PARAMETER InstallImageIndex
         Selected edition index in install.wim.
 
-    .معامل Log
+    .PARAMETER Log
         Optional ScriptBlock for progress/status logging. Receives a single [string] argument.
     #>
     param (
         [Parameter(Mandatory)][string]$ISOContentsDir,
         [string]$AutoUnattendXml = "",
         [bool]$InjectCurrentSystemDrivers = $false,
-        [string]$تثبيتEditionId = "",
-        [string]$تثبيتImagePath = "",
-        [int]$تثبيتImageIndex = 1,
+        [string]$InstallEditionId = "",
+        [string]$InstallImagePath = "",
+        [int]$InstallImageIndex = 1,
         [scriptblock]$Log = { param($m) Write-Output $m }
     )
 
     function Add-WinUtilISOStagedDrivers {
         param (
             [Parameter(Mandatory)][string]$ContentRoot,
-            [Parameter(Mandatory)][string]$تثبيتImagePath,
-            [Parameter(Mandatory)][int]$تثبيتImageIndex,
+            [Parameter(Mandatory)][string]$InstallImagePath,
+            [Parameter(Mandatory)][int]$InstallImageIndex,
             [scriptblock]$Logger
         )
 
-        function نسخ-WinUtilISODriverFolder {
+        function Copy-WinUtilISODriverFolder {
             param (
                 [Parameter(Mandatory)][string]$Source,
                 [Parameter(Mandatory)][string]$Destination
@@ -2737,7 +2737,7 @@ function Invoke-WinUtilISOScript {
                 $suffix++
             }
 
-            نسخ-Item -LiteralPath $Source -Destination $targetPath -Recurse -Force -ErrorAction Stop
+            Copy-Item -LiteralPath $Source -Destination $targetPath -Recurse -Force -ErrorAction Stop
             return $targetPath
         }
 
@@ -2797,9 +2797,9 @@ function Invoke-WinUtilISOScript {
                 [hashtable]$After
             )
 
-            foreach ($key in 'Languages', 'تثبيتation', 'Edition', 'ProductSuite', 'ProductType') {
+            foreach ($key in 'Languages', 'Installation', 'Edition', 'ProductSuite', 'ProductType') {
                 $beforeValue = [string]$Before[$key]
-                if ($beforeValue -eq '<undefined>' -or ($key -in 'تثبيتation', 'Edition', 'ProductType' -and [string]::IsNullOrWhiteSpace($beforeValue))) {
+                if ($beforeValue -eq '<undefined>' -or ($key -in 'Installation', 'Edition', 'ProductType' -and [string]::IsNullOrWhiteSpace($beforeValue))) {
                     throw "install.wim metadata is already invalid: $key is undefined. Driver injection was not attempted."
                 }
                 if ($After) {
@@ -2817,30 +2817,30 @@ function Invoke-WinUtilISOScript {
             return @(& dism.exe /English /Get-MountedImageInfo 2>$null) -match [regex]::Escape($Path)
         }
 
-        if ([IO.Path]::GetExtension($تثبيتImagePath) -ne '.wim') {
+        if ([IO.Path]::GetExtension($InstallImagePath) -ne '.wim') {
             throw 'Current-system driver injection requires install.wim; install.esd cannot be serviced in place.'
         }
-        if (-not (Test-Path -LiteralPath $تثبيتImagePath)) {
-            throw "install.wim غير موجود: $تثبيتImagePath"
+        if (-not (Test-Path -LiteralPath $InstallImagePath)) {
+            throw "install.wim was not found: $InstallImagePath"
         }
-        if ($تثبيتImageIndex -lt 1) {
+        if ($InstallImageIndex -lt 1) {
             throw 'Current-system driver injection requires a valid install.wim image index.'
         }
 
-        $driverتصديرRoot = Join-Path $env:TEMP "WinUtil_Driverتصدير_$(Get-Date -Format 'yyyyMMdd_HHmmss')_$(([guid]::NewGuid()).ToString('N').Substring(0, 8))"
+        $driverExportRoot = Join-Path $env:TEMP "WinUtil_DriverExport_$(Get-Date -Format 'yyyyMMdd_HHmmss')_$(([guid]::NewGuid()).ToString('N').Substring(0, 8))"
         $mountDir = Join-Path (Split-Path -Path $ContentRoot -Parent) 'wim_mount'
-        New-Item -Path $driverتصديرRoot -ItemType Directory -Force | Out-Null
+        New-Item -Path $driverExportRoot -ItemType Directory -Force | Out-Null
         $imageMounted = $false
 
         try {
-            & $Logger "تصديرing current system drivers before modifying install.wim..."
-            $dismLog = Join-Path $env:TEMP "WinUtil_DismDriverتصدير_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
-            $dismProcess = Start-Process -FilePath "dism.exe" -ArgumentList "/online /export-driver /destination:`"$driverتصديرRoot`" /LogPath:`"$dismLog`"" -Wait -NoNewWindow -PassThru
+            & $Logger "Exporting current system drivers before modifying install.wim..."
+            $dismLog = Join-Path $env:TEMP "WinUtil_DismDriverExport_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+            $dismProcess = Start-Process -FilePath "dism.exe" -ArgumentList "/online /export-driver /destination:`"$driverExportRoot`" /LogPath:`"$dismLog`"" -Wait -NoNewWindow -PassThru
             if ($dismProcess.ExitCode -ne 0) {
                 throw "dism.exe driver export failed with exit code $($dismProcess.ExitCode)."
             }
 
-            $driverInfs = @(Get-ChildItem -Path $driverتصديرRoot -Filter '*.inf' -Recurse -File)
+            $driverInfs = @(Get-ChildItem -Path $driverExportRoot -Filter '*.inf' -Recurse -File)
             if ($driverInfs.Count -eq 0) {
                 throw 'DISM exported no driver INF files.'
             }
@@ -2858,7 +2858,7 @@ function Invoke-WinUtilISOScript {
 
                 try {
                     New-Item -Path $winpeDriverDir -ItemType Directory -Force | Out-Null
-                    $winpeTarget = نسخ-WinUtilISODriverFolder -Source $driverFolder -Destination $winpeDriverDir
+                    $winpeTarget = Copy-WinUtilISODriverFolder -Source $driverFolder -Destination $winpeDriverDir
                     $storageCount++
                     & $Logger "Staged boot-storage package '$driverFolder' for WinPE as '$winpeTarget'."
                 } catch {
@@ -2871,24 +2871,24 @@ function Invoke-WinUtilISOScript {
                 throw "Failed to stage $copyFailures boot-storage driver package folders."
             }
 
-            & $Logger "تصديرed $($driverInfs.Count) driver INF files across $($driverFolders.Count) package folders; staged $storageCount boot-storage packages for WinPE."
-            $metadataBefore = Get-WinUtilISOWimMetadata -ImagePath $تثبيتImagePath -Index $تثبيتImageIndex
+            & $Logger "Exported $($driverInfs.Count) driver INF files across $($driverFolders.Count) package folders; staged $storageCount boot-storage packages for WinPE."
+            $metadataBefore = Get-WinUtilISOWimMetadata -ImagePath $InstallImagePath -Index $InstallImageIndex
             Assert-WinUtilISOWimMetadata -Before $metadataBefore
 
-            Set-ItemProperty -LiteralPath $تثبيتImagePath -Name IsReadOnly -Value $false
+            Set-ItemProperty -LiteralPath $InstallImagePath -Name IsReadOnly -Value $false
             New-Item -Path $mountDir -ItemType Directory -Force | Out-Null
-            & $Logger "Mounting install.wim index $تثبيتImageIndex once for driver injection..."
-            Invoke-WinUtilISODism -Arguments @('/English', '/Mount-Image', "/ImageFile:$تثبيتImagePath", "/Index:$تثبيتImageIndex", "/MountDir:$mountDir") -Operation 'mount' | Out-Null
+            & $Logger "Mounting install.wim index $InstallImageIndex once for driver injection..."
+            Invoke-WinUtilISODism -Arguments @('/English', '/Mount-Image', "/ImageFile:$InstallImagePath", "/Index:$InstallImageIndex", "/MountDir:$mountDir") -Operation 'mount' | Out-Null
             $imageMounted = $true
 
             & $Logger "Adding all exported drivers to the selected Windows image in one DISM operation..."
-            Invoke-WinUtilISODism -Arguments @('/English', "/Image:$mountDir", '/Add-Driver', "/Driver:$driverتصديرRoot", '/Recurse') -Operation 'add-driver' | Out-Null
+            Invoke-WinUtilISODism -Arguments @('/English', "/Image:$mountDir", '/Add-Driver', "/Driver:$driverExportRoot", '/Recurse') -Operation 'add-driver' | Out-Null
 
             & $Logger 'Committing the driver-only install.wim change...'
             Invoke-WinUtilISODism -Arguments @('/English', '/Unmount-Image', "/MountDir:$mountDir", '/Commit') -Operation 'commit' | Out-Null
             $imageMounted = $false
 
-            $metadataAfter = Get-WinUtilISOWimMetadata -ImagePath $تثبيتImagePath -Index $تثبيتImageIndex
+            $metadataAfter = Get-WinUtilISOWimMetadata -ImagePath $InstallImagePath -Index $InstallImageIndex
             Assert-WinUtilISOWimMetadata -Before $metadataBefore -After $metadataAfter
             & $Logger 'Driver injection complete; install.wim metadata validation passed.'
         } finally {
@@ -2900,11 +2900,11 @@ function Invoke-WinUtilISOScript {
                 }
             }
             Remove-Item -Path $mountDir -Recurse -Force -ErrorAction SilentlyContinue
-            Remove-Item -Path $driverتصديرRoot -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path $driverExportRoot -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 
-    function Write-WinUtilISOEditionالإعداد {
+    function Write-WinUtilISOEditionConfig {
         param (
             [Parameter(Mandatory)][string]$ContentRoot,
             [string]$EditionId,
@@ -2942,7 +2942,7 @@ Retail
     function Add-WinUtilISOSetupCustomizations {
         param (
             [Parameter(Mandatory)][string]$XmlContent,
-            [Parameter(Mandatory)][int]$تثبيتImageIndex,
+            [Parameter(Mandatory)][int]$InstallImageIndex,
             [scriptblock]$Logger
         )
 
@@ -2957,13 +2957,13 @@ Retail
         )
 
         $appxList = ($appxPackages | ForEach-Object { "    '$_'" }) -join "`r`n"
-        $postتثبيتScript = @"
+        $postInstallScript = @"
 `$ErrorActionPreference = 'Continue'
-`$logPath = 'C:\Windows\Setup\Scripts\WinUtil-Postتثبيت.log'
+`$logPath = 'C:\Windows\Setup\Scripts\WinUtil-PostInstall.log'
 Start-Transcript -Path `$logPath -Append -ErrorAction SilentlyContinue
 
 try {
-    Write-Host 'WinUtil: جارٍ إزالة حزم إزالة تطبيقات النظام المُهيّأة...'
+    Write-Host 'WinUtil: جارٍ إزالة حزم AppX المُهيّأة...'
     `$packages = @(
 $appxList
     )
@@ -2971,9 +2971,9 @@ $appxList
         Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue |
             Where-Object { `$_.DisplayName -like "*`$package*" } |
             ForEach-Object { Remove-AppxProvisionedPackage -Online -PackageName `$_.PackageName -ErrorAction SilentlyContinue | Out-Null }
-        Get-AppxPackage -الكلUsers -ErrorAction SilentlyContinue |
+        Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue |
             Where-Object { `$_.Name -like "*`$package*" } |
-            ForEach-Object { Remove-AppxPackage -الكلUsers -Package `$_.PackageFullName -ErrorAction SilentlyContinue | Out-Null }
+            ForEach-Object { Remove-AppxPackage -AllUsers -Package `$_.PackageFullName -ErrorAction SilentlyContinue | Out-Null }
     }
 
     function Set-WinUtilRegistryValue([string]`$Path, [string]`$Name, [string]`$Type, [string]`$Value) {
@@ -2982,12 +2982,12 @@ $appxList
 
     function Set-WinUtilContentDeliveryManagerValues([string]`$HiveRoot) {
         `$contentDeliveryManager = "`$HiveRoot\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
-        Set-WinUtilRegistryValue `$contentDeliveryManager 'OemPreتثبيتedAppsEnabled' 'REG_DWORD' '0'
-        Set-WinUtilRegistryValue `$contentDeliveryManager 'PreتثبيتedAppsEnabled' 'REG_DWORD' '0'
-        Set-WinUtilRegistryValue `$contentDeliveryManager 'SilentتثبيتedAppsEnabled' 'REG_DWORD' '0'
-        Set-WinUtilRegistryValue `$contentDeliveryManager 'ContentDeliveryالكلowed' 'REG_DWORD' '0'
+        Set-WinUtilRegistryValue `$contentDeliveryManager 'OemPreInstalledAppsEnabled' 'REG_DWORD' '0'
+        Set-WinUtilRegistryValue `$contentDeliveryManager 'PreInstalledAppsEnabled' 'REG_DWORD' '0'
+        Set-WinUtilRegistryValue `$contentDeliveryManager 'SilentInstalledAppsEnabled' 'REG_DWORD' '0'
+        Set-WinUtilRegistryValue `$contentDeliveryManager 'ContentDeliveryAllowed' 'REG_DWORD' '0'
         Set-WinUtilRegistryValue `$contentDeliveryManager 'FeatureManagementEnabled' 'REG_DWORD' '0'
-        Set-WinUtilRegistryValue `$contentDeliveryManager 'PreتثبيتedAppsEverEnabled' 'REG_DWORD' '0'
+        Set-WinUtilRegistryValue `$contentDeliveryManager 'PreInstalledAppsEverEnabled' 'REG_DWORD' '0'
         Set-WinUtilRegistryValue `$contentDeliveryManager 'SoftLandingEnabled' 'REG_DWORD' '0'
         Set-WinUtilRegistryValue `$contentDeliveryManager 'SubscribedContentEnabled' 'REG_DWORD' '0'
         Set-WinUtilRegistryValue `$contentDeliveryManager 'SubscribedContent-310093Enabled' 'REG_DWORD' '0'
@@ -3006,25 +3006,25 @@ $appxList
     Set-WinUtilRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\BitLocker' 'PreventDeviceEncryption' 'REG_DWORD' '1'
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Chat' 'ChatIcon' 'REG_DWORD' '3'
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive' 'DisableFileSyncNGSC' 'REG_DWORD' '1'
-    Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection' 'الكلowTelemetry' 'REG_DWORD' '0'
+    Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection' 'AllowTelemetry' 'REG_DWORD' '0'
     Set-WinUtilRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Services\dmwappushservice' 'Start' 'REG_DWORD' '4'
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' 'REG_DWORD' '1'
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Edge' 'HubsSidebarEnabled' 'REG_DWORD' '0'
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer' 'DisableSearchBoxSuggestions' 'REG_DWORD' '1'
-    Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Teams' 'Disableتثبيتation' 'REG_DWORD' '1'
+    Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Teams' 'DisableInstallation' 'REG_DWORD' '1'
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Mail' 'PreventRun' 'REG_DWORD' '1'
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableWindowsConsumerFeatures' 'REG_DWORD' '1'
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableConsumerAccountStateContent' 'REG_DWORD' '1'
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableCloudOptimizedContent' 'REG_DWORD' '1'
-    Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Microsoft\PolicyManager\current\device\Start' 'الإعدادureStartPins' 'REG_SZ' '{"pinnedList": [{}]}'
+    Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Microsoft\PolicyManager\current\device\Start' 'ConfigureStartPins' 'REG_SZ' '{"pinnedList": [{}]}'
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE' 'BypassNRO' 'REG_DWORD' '1'
-    Set-WinUtilRegistryValue 'HKLM\SYSTEM\Setup\Labالإعداد' 'BypassCPUCheck' 'REG_DWORD' '1'
-    Set-WinUtilRegistryValue 'HKLM\SYSTEM\Setup\Labالإعداد' 'BypassRAMCheck' 'REG_DWORD' '1'
-    Set-WinUtilRegistryValue 'HKLM\SYSTEM\Setup\Labالإعداد' 'BypassSecureBootCheck' 'REG_DWORD' '1'
-    Set-WinUtilRegistryValue 'HKLM\SYSTEM\Setup\Labالإعداد' 'BypassStorageCheck' 'REG_DWORD' '1'
-    Set-WinUtilRegistryValue 'HKLM\SYSTEM\Setup\Labالإعداد' 'BypassTPMCheck' 'REG_DWORD' '1'
-    Set-WinUtilRegistryValue 'HKLM\SYSTEM\Setup\MoSetup' 'الكلowUpgradesWithUnsupportedTPMOrCPU' 'REG_DWORD' '1'
-    Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\PushToتثبيت' 'DisablePushToتثبيت' 'REG_DWORD' '1'
+    Set-WinUtilRegistryValue 'HKLM\SYSTEM\Setup\LabConfig' 'BypassCPUCheck' 'REG_DWORD' '1'
+    Set-WinUtilRegistryValue 'HKLM\SYSTEM\Setup\LabConfig' 'BypassRAMCheck' 'REG_DWORD' '1'
+    Set-WinUtilRegistryValue 'HKLM\SYSTEM\Setup\LabConfig' 'BypassSecureBootCheck' 'REG_DWORD' '1'
+    Set-WinUtilRegistryValue 'HKLM\SYSTEM\Setup\LabConfig' 'BypassStorageCheck' 'REG_DWORD' '1'
+    Set-WinUtilRegistryValue 'HKLM\SYSTEM\Setup\LabConfig' 'BypassTPMCheck' 'REG_DWORD' '1'
+    Set-WinUtilRegistryValue 'HKLM\SYSTEM\Setup\MoSetup' 'AllowUpgradesWithUnsupportedTPMOrCPU' 'REG_DWORD' '1'
+    Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\PushToInstall' 'DisablePushToInstall' 'REG_DWORD' '1'
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\MRT' 'DontOfferThroughWUAU' 'REG_DWORD' '1'
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate' 'workCompleted' 'REG_DWORD' '1'
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\UScheduler\OutlookUpdate' 'workCompleted' 'REG_DWORD' '1'
@@ -3039,7 +3039,7 @@ $appxList
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' 'WUStatusServer' 'REG_SZ' 'http://localhost:8080'
     Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\UScheduler_Oobe\WindowsUpdate' 'workCompleted' 'REG_DWORD' '1'
     reg.exe delete 'HKLM\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\WindowsUpdate' /f 2>&1 | Out-Null
-    Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\الإعداد' 'DODownloadMode' 'REG_DWORD' '0'
+    Set-WinUtilRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config' 'DODownloadMode' 'REG_DWORD' '0'
     Set-WinUtilRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Services\BITS' 'Start' 'REG_DWORD' '4'
     Set-WinUtilRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Services\wuauserv' 'Start' 'REG_DWORD' '4'
     Set-WinUtilRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Services\UsoSvc' 'Start' 'REG_DWORD' '4'
@@ -3053,12 +3053,12 @@ $appxList
         Set-WinUtilContentDeliveryManagerValues `$defaultHive
         Set-WinUtilRegistryValue "`$defaultHive\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo" 'Enabled' 'REG_DWORD' '0'
         Set-WinUtilRegistryValue "`$defaultHive\Software\Microsoft\Windows\CurrentVersion\Privacy" 'TailoredExperiencesWithDiagnosticDataEnabled' 'REG_DWORD' '0'
-        Set-WinUtilRegistryValue "`$defaultHive\Software\Microsoft\Speech_OneCore\الإعدادات\OnlineSpeechPrivacy" 'HasAccepted' 'REG_DWORD' '0'
+        Set-WinUtilRegistryValue "`$defaultHive\Software\Microsoft\Speech_OneCore\Settings\OnlineSpeechPrivacy" 'HasAccepted' 'REG_DWORD' '0'
         Set-WinUtilRegistryValue "`$defaultHive\Software\Microsoft\Input\TIPC" 'Enabled' 'REG_DWORD' '0'
         Set-WinUtilRegistryValue "`$defaultHive\Software\Microsoft\InputPersonalization" 'RestrictImplicitInkCollection' 'REG_DWORD' '1'
         Set-WinUtilRegistryValue "`$defaultHive\Software\Microsoft\InputPersonalization" 'RestrictImplicitTextCollection' 'REG_DWORD' '1'
         Set-WinUtilRegistryValue "`$defaultHive\Software\Microsoft\InputPersonalization\TrainedDataStore" 'HarvestContacts' 'REG_DWORD' '0'
-        Set-WinUtilRegistryValue "`$defaultHive\Software\Microsoft\Personalization\الإعدادات" 'AcceptedPrivacyPolicy' 'REG_DWORD' '0'
+        Set-WinUtilRegistryValue "`$defaultHive\Software\Microsoft\Personalization\Settings" 'AcceptedPrivacyPolicy' 'REG_DWORD' '0'
         reg.exe unload `$defaultHive 2>&1 | Out-Null
     }
 
@@ -3068,12 +3068,12 @@ $appxList
     Set-WinUtilRegistryValue 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'TaskbarMn' 'REG_DWORD' '0'
     Set-WinUtilRegistryValue 'HKCU\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo' 'Enabled' 'REG_DWORD' '0'
     Set-WinUtilRegistryValue 'HKCU\Software\Microsoft\Windows\CurrentVersion\Privacy' 'TailoredExperiencesWithDiagnosticDataEnabled' 'REG_DWORD' '0'
-    Set-WinUtilRegistryValue 'HKCU\Software\Microsoft\Speech_OneCore\الإعدادات\OnlineSpeechPrivacy' 'HasAccepted' 'REG_DWORD' '0'
+    Set-WinUtilRegistryValue 'HKCU\Software\Microsoft\Speech_OneCore\Settings\OnlineSpeechPrivacy' 'HasAccepted' 'REG_DWORD' '0'
     Set-WinUtilRegistryValue 'HKCU\Software\Microsoft\Input\TIPC' 'Enabled' 'REG_DWORD' '0'
     Set-WinUtilRegistryValue 'HKCU\Software\Microsoft\InputPersonalization' 'RestrictImplicitInkCollection' 'REG_DWORD' '1'
     Set-WinUtilRegistryValue 'HKCU\Software\Microsoft\InputPersonalization' 'RestrictImplicitTextCollection' 'REG_DWORD' '1'
     Set-WinUtilRegistryValue 'HKCU\Software\Microsoft\InputPersonalization\TrainedDataStore' 'HarvestContacts' 'REG_DWORD' '0'
-    Set-WinUtilRegistryValue 'HKCU\Software\Microsoft\Personalization\الإعدادات' 'AcceptedPrivacyPolicy' 'REG_DWORD' '0'
+    Set-WinUtilRegistryValue 'HKCU\Software\Microsoft\Personalization\Settings' 'AcceptedPrivacyPolicy' 'REG_DWORD' '0'
 
     Write-Host 'WinUtil: جارٍ إزالة تعريفات المهام المجدولة...'
     `$taskPaths = @(
@@ -3082,7 +3082,7 @@ $appxList
         'C:\Windows\System32\Tasks\Microsoft\Windows\Application Experience\ProgramDataUpdater',
         'C:\Windows\System32\Tasks\Microsoft\Windows\Chkdsk\Proxy',
         'C:\Windows\System32\Tasks\Microsoft\Windows\Windows Error Reporting\QueueReporting',
-        'C:\Windows\System32\Tasks\Microsoft\Windows\تثبيتService',
+        'C:\Windows\System32\Tasks\Microsoft\Windows\InstallService',
         'C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator',
         'C:\Windows\System32\Tasks\Microsoft\Windows\UpdateAssistant',
         'C:\Windows\System32\Tasks\Microsoft\Windows\WaaSMedic',
@@ -3112,44 +3112,44 @@ $appxList
             throw 'autounattend.xml is missing a required Windows Setup, Extensions, or FirstLogon.ps1 node.'
         }
 
-        $imageتثبيت = $setupComponent.SelectSingleNode('u:Imageتثبيت', $nsMgr)
-        if (-not $imageتثبيت) {
-            $imageتثبيت = $xmlDoc.CreateElement('Imageتثبيت', $setupComponent.NamespaceURI)
-            [void]$setupComponent.AppendChild($imageتثبيت)
+        $imageInstall = $setupComponent.SelectSingleNode('u:ImageInstall', $nsMgr)
+        if (-not $imageInstall) {
+            $imageInstall = $xmlDoc.CreateElement('ImageInstall', $setupComponent.NamespaceURI)
+            [void]$setupComponent.AppendChild($imageInstall)
         }
-        $osImage = $imageتثبيت.SelectSingleNode('u:OSImage', $nsMgr)
+        $osImage = $imageInstall.SelectSingleNode('u:OSImage', $nsMgr)
         if (-not $osImage) {
             $osImage = $xmlDoc.CreateElement('OSImage', $setupComponent.NamespaceURI)
-            [void]$imageتثبيت.AppendChild($osImage)
+            [void]$imageInstall.AppendChild($osImage)
         }
-        $installFrom = $osImage.SelectSingleNode('u:تثبيتFrom', $nsMgr)
+        $installFrom = $osImage.SelectSingleNode('u:InstallFrom', $nsMgr)
         if (-not $installFrom) {
-            $installFrom = $xmlDoc.CreateElement('تثبيتFrom', $setupComponent.NamespaceURI)
+            $installFrom = $xmlDoc.CreateElement('InstallFrom', $setupComponent.NamespaceURI)
             [void]$osImage.AppendChild($installFrom)
         }
         foreach ($existingMetadata in @($installFrom.SelectNodes('u:MetaData', $nsMgr))) {
             [void]$installFrom.RemoveChild($existingMetadata)
         }
         $metadata = $xmlDoc.CreateElement('MetaData', $setupComponent.NamespaceURI)
-        $action = $xmlDoc.CreateAttribute('wcm', 'action', 'http://schemas.microsoft.com/WMIالإعداد/2002/State')
+        $action = $xmlDoc.CreateAttribute('wcm', 'action', 'http://schemas.microsoft.com/WMIConfig/2002/State')
         $action.Value = 'add'
         [void]$metadata.Attributes.Append($action)
         $key = $xmlDoc.CreateElement('Key', $setupComponent.NamespaceURI)
         $key.InnerText = '/IMAGE/INDEX'
         [void]$metadata.AppendChild($key)
         $value = $xmlDoc.CreateElement('Value', $setupComponent.NamespaceURI)
-        $value.InnerText = [string]$تثبيتImageIndex
+        $value.InnerText = [string]$InstallImageIndex
         [void]$metadata.AppendChild($value)
         [void]$installFrom.AppendChild($metadata)
 
-        $postتثبيتFile = $xmlDoc.CreateElement('File', $extensions.NamespaceURI)
-        $postتثبيتFile.SetAttribute('path', 'C:\Windows\Setup\Scripts\WinUtil-Postتثبيت.ps1')
-        $postتثبيتFile.InnerText = $postتثبيتScript
-        [void]$extensions.AppendChild($postتثبيتFile)
+        $postInstallFile = $xmlDoc.CreateElement('File', $extensions.NamespaceURI)
+        $postInstallFile.SetAttribute('path', 'C:\Windows\Setup\Scripts\WinUtil-PostInstall.ps1')
+        $postInstallFile.InnerText = $postInstallScript
+        [void]$extensions.AppendChild($postInstallFile)
 
-        $firstLogonFile.InnerText = "& 'C:\Windows\Setup\Scripts\WinUtil-Postتثبيت.ps1';`r`n`r`n$($firstLogonFile.InnerText.Trim())"
+        $firstLogonFile.InnerText = "& 'C:\Windows\Setup\Scripts\WinUtil-PostInstall.ps1';`r`n`r`n$($firstLogonFile.InnerText.Trim())"
 
-        $null = & $Logger 'Added WinUtil post-install إزالة تطبيقات النظام, registry, and scheduled-task customizations to autounattend.xml.'
+        $null = & $Logger 'Added WinUtil post-install AppX, registry, and scheduled-task customizations to autounattend.xml.'
         return $xmlDoc.OuterXml
     }
 
@@ -3185,14 +3185,14 @@ $appxList
                 default { [System.Text.Encoding]::Default }
             }
             $bytes = $encoding.GetPreamble() + $encoding.GetBytes($file.InnerText.Trim())
-            [System.IO.File]::WriteالكلBytes($targetPath, $bytes)
+            [System.IO.File]::WriteAllBytes($targetPath, $bytes)
             $stagedCount++
         }
 
-        $useالإعدادurationSet = $xmlDoc.SelectSingleNode('/u:unattend/u:settings[@pass="windowsPE"]/u:component[@name="Microsoft-Windows-Setup"]/u:UseالإعدادurationSet', $nsMgr)
-        if ($useالإعدادurationSet) {
-            $useالإعدادurationSet.InnerText = 'true'
-            [System.IO.File]::WriteالكلText((Join-Path $ContentRoot 'autounattend.xml'), $xmlDoc.OuterXml, [System.Text.UTF8Encoding]::new($false))
+        $useConfigurationSet = $xmlDoc.SelectSingleNode('/u:unattend/u:settings[@pass="windowsPE"]/u:component[@name="Microsoft-Windows-Setup"]/u:UseConfigurationSet', $nsMgr)
+        if ($useConfigurationSet) {
+            $useConfigurationSet.InnerText = 'true'
+            [System.IO.File]::WriteAllText((Join-Path $ContentRoot 'autounattend.xml'), $xmlDoc.OuterXml, [System.Text.UTF8Encoding]::new($false))
         }
         & $Logger "Staged $stagedCount WinUtil setup script fallback files at '$setupScriptsRoot'."
     }
@@ -3205,20 +3205,20 @@ $appxList
         throw "autounattend.xml content is required to prepare setup media."
     }
 
-    $preparedAutoUnattendXml = Add-WinUtilISOSetupCustomizations -XmlContent $AutoUnattendXml -تثبيتImageIndex $تثبيتImageIndex -Logger $Log
+    $preparedAutoUnattendXml = Add-WinUtilISOSetupCustomizations -XmlContent $AutoUnattendXml -InstallImageIndex $InstallImageIndex -Logger $Log
     $unattendPath = Join-Path $ISOContentsDir "autounattend.xml"
-    [System.IO.File]::WriteالكلText($unattendPath, $preparedAutoUnattendXml, [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText($unattendPath, $preparedAutoUnattendXml, [System.Text.UTF8Encoding]::new($false))
     & $Log "Written autounattend.xml with WinUtil setup customizations to ISO root ($unattendPath)."
     Add-WinUtilISOSetupScriptFallback -ContentRoot $ISOContentsDir -XmlContent $preparedAutoUnattendXml -Logger $Log
 
-    Write-WinUtilISOEditionالإعداد -ContentRoot $ISOContentsDir -EditionId $تثبيتEditionId -Logger $Log
+    Write-WinUtilISOEditionConfig -ContentRoot $ISOContentsDir -EditionId $InstallEditionId -Logger $Log
 
     if ($InjectCurrentSystemDrivers) {
-        Add-WinUtilISOStagedDrivers -ContentRoot $ISOContentsDir -Logger $Log -تثبيتImagePath $تثبيتImagePath -تثبيتImageIndex $تثبيتImageIndex
+        Add-WinUtilISOStagedDrivers -ContentRoot $ISOContentsDir -Logger $Log -InstallImagePath $InstallImagePath -InstallImageIndex $InstallImageIndex
     }
 }
 
-function Invoke-WinUtilISOتحديثUSBDrives {
+function Invoke-WinUtilISORefreshUSBDrives {
     $combo    = $sync["WPFWin11ISOUSBDriveComboBox"]
     $removable = @(Get-Disk | Where-Object { $_.BusType -eq "USB" } | Sort-Object Number)
 
@@ -3258,7 +3258,7 @@ function Invoke-WinUtilISOWriteUSB {
         $esdSizeMB = [math]::Ceiling($esdSizeBytes / 1MB)
         if ($esdSizeBytes -ge 4GB) {
             [System.Windows.MessageBox]::Show(
-                "This ISO uses an install.esd file that is $esdSizeMB MB. WinUtil's FAT32 USB format cannot store files larger than 4 GB.`n`nتصدير an ISO instead or use media with install.wim.",
+                "This ISO uses an install.esd file that is $esdSizeMB MB. WinUtil's FAT32 USB format cannot store files larger than 4 GB.`n`nExport an ISO instead or use media with install.wim.",
                 "USB Creation Not Supported", "OK", "Warning")
             return
         }
@@ -3321,10 +3321,10 @@ function Invoke-WinUtilISOWriteUSB {
 
         function SetProgress($label, $pct) {
             $sync["WPFWin11ISOStatusLog"].Dispatcher.Invoke([action]{
-                $sync["WPFالتعديلاتProgressBar"].Visibility = "Visible"
-                $sync["WPFالتعديلاتProgressLabel"].Text      = $label
-                $sync["WPFالتعديلاتProgressLabel"].ToolTip   = $label
-                $sync["WPFالتعديلاتProgressValue"].Value     = [Math]::Max($pct, 5)
+                $sync["WPFTweaksProgressBar"].Visibility = "Visible"
+                $sync["WPFTweaksProgressLabel"].Text      = $label
+                $sync["WPFTweaksProgressLabel"].ToolTip   = $label
+                $sync["WPFTweaksProgressValue"].Value     = [Math]::Max($pct, 5)
             })
         }
 
@@ -3453,9 +3453,9 @@ function Invoke-WinUtilISOWriteUSB {
                 throw "Insufficient free space on USB partition. Required: $contentSizeGB GB, available: $partitionFreeGB GB."
             }
 
-            SetProgress "نسخing Windows 11 files to USB..." 45
+            SetProgress "Copying Windows 11 files to USB..." 45
 
-            # نسخ files; split install.wim if > 4 GB (FAT32 limit)
+            # Copy files; split install.wim if > 4 GB (FAT32 limit)
             $installWim = Join-Path $contentsDir "sources\install.wim"
             if (Test-Path $installWim) {
                 $wimSizeMB = [math]::Round((Get-Item $installWim).Length / 1MB)
@@ -3466,7 +3466,7 @@ function Invoke-WinUtilISOWriteUSB {
                     New-Item -ItemType Directory -Path (Split-Path $splitDest) -Force
                     Split-WindowsImage -ImagePath $installWim -SplitImagePath $splitDest -FileSize 3800 -CheckIntegrity
                     Log "install.wim split complete."
-                    Log "نسخing remaining files to USB..."
+                    Log "Copying remaining files to USB..."
                     & robocopy $contentsDir $usbDrive /E /XF install.wim /NFL /NDL /NJH /NJS
                 } else {
                     & robocopy $contentsDir $usbDrive /E /NFL /NDL /NJH /NJS
@@ -3494,10 +3494,10 @@ function Invoke-WinUtilISOWriteUSB {
             Start-Sleep -Milliseconds 800
             $sync["Win11ISOProcessRunning"] = $false
             $sync["WPFWin11ISOStatusLog"].Dispatcher.Invoke([action]{
-                $sync["WPFالتعديلاتProgressBar"].Visibility = "Collapsed"
-                $sync["WPFالتعديلاتProgressLabel"].Text      = ""
-                $sync["WPFالتعديلاتProgressLabel"].ToolTip   = ""
-                $sync["WPFالتعديلاتProgressValue"].Value     = 0
+                $sync["WPFTweaksProgressBar"].Visibility = "Collapsed"
+                $sync["WPFTweaksProgressLabel"].Text      = ""
+                $sync["WPFTweaksProgressLabel"].ToolTip   = ""
+                $sync["WPFTweaksProgressValue"].Value     = 0
                 $sync["WPFWin11ISOWriteUSBButton"].IsEnabled = $true
             })
         }
@@ -3509,18 +3509,18 @@ function Invoke-WinUtilISOWriteUSB {
 function Invoke-WinUtilScript {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Invokes the provided scriptblock. Intended for things that can't be handled with the other functions.
 
-    .معامل Name
+    .PARAMETER Name
         The name of the scriptblock being invoked
 
-    .معامل scriptblock
+    .PARAMETER scriptblock
         The scriptblock to be invoked
 
-    .مثال
-        $Scriptblock = [scriptblock]::Create({"Write-output 'مرحباً بالعالم'"})
-        Invoke-WinUtilScript -ScriptBlock $scriptblock -Name "مرحباً بالعالم"
+    .EXAMPLE
+        $Scriptblock = [scriptblock]::Create({"Write-output 'Hello World'"})
+        Invoke-WinUtilScript -ScriptBlock $scriptblock -Name "Hello World"
 
     #>
     param (
@@ -3529,12 +3529,12 @@ function Invoke-WinUtilScript {
     )
 
     try {
-        Write-Host "جارٍ تشغيل السكريبت لـ $Name"
+        Write-Host "Running Script for $Name"
         Write-WinUtilLog -Component "Script" -Message "Running script for $Name"
         Invoke-Command $scriptblock -ErrorAction Stop
         Write-WinUtilLog -Component "Script" -Message "Completed script for $Name"
     } catch [System.Management.Automation.CommandNotFoundException] {
-        Write-Warning "The specified command غير موجود."
+        Write-Warning "الأمر المحدد غير موجود."
         Write-Warning $PSItem.Exception.message
         Write-WinUtilLog -Level "ERROR" -Component "Script" -Message "Command not found while running script for $Name`: $($PSItem.Exception.Message)"
     } catch [System.Management.Automation.RuntimeException] {
@@ -3546,32 +3546,32 @@ function Invoke-WinUtilScript {
         Write-Warning $PSItem.Exception.message
         Write-WinUtilLog -Level "ERROR" -Component "Script" -Message "Security exception while running script for $Name`: $($PSItem.Exception.Message)"
     } catch [System.UnauthorizedAccessException] {
-        Write-Warning "تمّ رفض الوصول. ليس لديك صلاحية لتنفيذ هذه العملية."
+        Write-Warning "تمّ رفض الوصول. ليس لديك الصلاحية لتنفيذ هذه العملية."
         Write-Warning $PSItem.Exception.message
         Write-WinUtilLog -Level "ERROR" -Component "Script" -Message "Access denied while running script for $Name`: $($PSItem.Exception.Message)"
     } catch {
         # Generic catch block to handle any other type of exception
-        Write-Warning "تعذّر تشغيل السكريبت لـ $Name بسبب استثناء غير معالَج."
+        Write-Warning "Unable to run script for $Name due to unhandled exception."
         Write-Warning $psitem.Exception.StackTrace
         Write-WinUtilLog -Level "ERROR" -Component "Script" -Message "Unhandled exception while running script for $Name`: $($psitem.Exception.Message)"
     }
 
 }
 
-Function Invoke-WinUtilالرعاة {
+Function Invoke-WinUtilSponsors {
     $sponsors = ([regex]::Matches(([regex]::Match((Invoke-RestMethod https://github.com/sponsors/ChrisTitusTech),'(?s)(?<=Current sponsors).*?(?=Past sponsors)')).Value,'(?<=alt="@)[^"]+')).Value | Where-Object {$_ -ne "ChrisTitusTech"}
     return $sponsors
 }
 
 function Invoke-WinUtilSSHServer {
     <#
-    .ملخص
+    .SYNOPSIS
         Enables OpenSSH server to remote into your windows device
     #>
 
-    # تثبيت the OpenSSH Server feature if not already installed
-    if ((Get-WindowsCapability -Name OpenSSH.Server -Online).State -ne "تثبيتed") {
-        Write-Host "جارٍ تفعيل خادم OpenSSH... قد يستغرق هذا وقتاً طويلاً."
+    # Install the OpenSSH Server feature if not already installed
+    if ((Get-WindowsCapability -Name OpenSSH.Server -Online).State -ne "Installed") {
+        Write-Host "جارٍ تفعيل خادم OpenSSH... قد يستغرق وقتاً طويلاً."
         Add-WindowsCapability -Name OpenSSH.Server -Online
     }
 
@@ -3586,7 +3586,7 @@ function Invoke-WinUtilSSHServer {
     #Adding Firewall rule for port 22
     Write-Host "جارٍ إعداد قواعد جدار الحماية"
     if (-not ((Get-NetFirewallRule -Name 'sshd').Enabled)) {
-        New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH Server (sshd)' -Enabled True -Direction Inbound -Protocol TCP -Action الكلow -LocalPort 22
+        New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH Server (sshd)' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22
         Write-Host "تمّ إنشاء وتفعيل قاعدة جدار الحماية لخادم OpenSSH."
     }
 
@@ -3595,7 +3595,7 @@ function Invoke-WinUtilSSHServer {
     # file that only Administrators and SYSTEM may write. WinUtil always runs
     # elevated, so the account being set up here is always an administrator.
     $sshProgramDataPath = Join-Path $env:ProgramData "ssh"
-    $sshdالإعدادPath = Join-Path $sshProgramDataPath "sshd_config"
+    $sshdConfigPath = Join-Path $sshProgramDataPath "sshd_config"
     $authorizedKeysPath = Join-Path $sshProgramDataPath "administrators_authorized_keys"
     $profileKeysPath = Join-Path $env:USERPROFILE ".ssh\authorized_keys"
 
@@ -3606,15 +3606,15 @@ function Invoke-WinUtilSSHServer {
     # Earlier WinUtil versions commented out the administrators block in
     # sshd_config. Detect that state before restoring it, so administrator keys
     # already in use are carried over instead of silently stopping working.
-    $configContent = if (Test-Path -Path $sshdالإعدادPath) { [string](Get-Content -Path $sshdالإعدادPath -Raw) } else { "" }
+    $configContent = if (Test-Path -Path $sshdConfigPath) { [string](Get-Content -Path $sshdConfigPath -Raw) } else { "" }
     $restoredContent = $configContent -replace '(?m)^# (Match Group administrators)$', '$1'
     $restoredContent = $restoredContent -replace '(?m)^# (\s+AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys)$', '$1'
     $configWasOverridden = $restoredContent -ne $configContent
 
     if (-not (Test-Path -Path $authorizedKeysPath)) {
-        Write-Host "جارٍ إنشاء ملف administrators_authorized_keys..."
+        Write-Host "Creating administrators_authorized_keys file..."
         New-Item -Path $authorizedKeysPath -ItemType File -Force | Out-Null
-        Write-Host "تمّ إنشاء ملف administrators_authorized_keys في $authorizedKeysPath."
+        Write-Host "administrators_authorized_keys file created at $authorizedKeysPath."
     }
 
     if ($configWasOverridden -and (Test-Path -Path $profileKeysPath)) {
@@ -3639,32 +3639,32 @@ function Invoke-WinUtilSSHServer {
     }
     foreach ($sid in @("S-1-5-32-544", "S-1-5-18")) {
         [void]$acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
-            [System.Security.Principal.SecurityIdentifier]::new($sid), "FullControl", "الكلow"))
+            [System.Security.Principal.SecurityIdentifier]::new($sid), "FullControl", "Allow"))
     }
     Set-Acl -Path $authorizedKeysPath -AclObject $acl
 
     if ($configWasOverridden) {
-        Set-Content -Path $sshdالإعدادPath -Value $restoredContent -Force
-        Write-Host "تمّ استعادة إعداد ملف مفتاح المسؤول في sshd_config."
+        Set-Content -Path $sshdConfigPath -Value $restoredContent -Force
+        Write-Host "Restored the administrator key file setting in sshd_config."
         Restart-Service -Name sshd -Force
     }
 
     Write-Host "تمّ تفعيل خادم OpenSSH بنجاح."
-    Write-Host "يمكن العثور على ملف الإعداد في $sshdالإعدادPath"
-    Write-Host "أضِف مفاتيحك العامة إلى هذا الملف -> $authorizedKeysPath"
+    Write-Host "The config file can be located at $sshdConfigPath"
+    Write-Host "Add your public keys to this file -> $authorizedKeysPath"
 }
 
 function Invoke-WinutilThemeChange {
     <#
-    .ملخص
+    .SYNOPSIS
         Toggles between light and dark themes for a Windows utility application.
 
-    .وصف
+    .DESCRIPTION
         This function toggles the theme of the user interface between 'Light' and 'Dark' modes,
         modifying various UI elements such as colors, margins, corner radii, font families, etc.
         If the '-init' switch is used, it initializes the theme based on the system's current dark mode setting.
 
-    .مثال
+    .EXAMPLE
         Invoke-WinutilThemeChange
         # Toggles the theme between 'Light' and 'Dark'.
 
@@ -3676,15 +3676,15 @@ function Invoke-WinutilThemeChange {
 
     function Set-WinutilTheme {
         <#
-        .ملخص
+        .SYNOPSIS
             Applies the specified theme to the application's user interface.
 
-        .وصف
+        .DESCRIPTION
             This internal function applies the given theme by setting the relevant properties
             like colors, font families, corner radii, etc., in the UI. It uses the
             'Set-ThemeResourceProperty' helper function to modify the application's resources.
 
-        .معامل currentTheme
+        .PARAMETER currentTheme
             The name of the theme to be applied. Common values are "Light", "Dark", or "shared".
         #>
         param (
@@ -3693,21 +3693,21 @@ function Invoke-WinutilThemeChange {
 
         function Set-ThemeResourceProperty {
             <#
-            .ملخص
+            .SYNOPSIS
                 Sets a specific UI property in the application's resources.
 
-            .وصف
+            .DESCRIPTION
                 This helper function sets a property (e.g., color, margin, corner radius) in the
                 application's resources, based on the provided type and value. It includes
                 error handling to manage potential issues while setting a property.
 
-            .معامل Name
+            .PARAMETER Name
                 The name of the resource property to modify (e.g., "MainBackgroundColor", "ButtonBackgroundMouseoverColor").
 
-            .معامل Value
+            .PARAMETER Value
                 The value to assign to the resource property (e.g., "#FFFFFF" for a color).
 
-            .معامل Type
+            .PARAMETER Type
                 The type of the resource, such as "ColorBrush", "CornerRadius", "GridLength", or "FontFamily".
             #>
             param($Name, $Value, $Type)
@@ -3741,14 +3741,14 @@ function Invoke-WinutilThemeChange {
             }
             catch {
                 # Log a warning if there's an issue setting the property
-                Write-Warning "فشل تعيين الخاصية $($Name): $_"
+                Write-Warning "Failed to set property $($Name): $_"
             }
         }
 
         # Retrieve all theme properties from the theme configuration
         $themeProperties = $sync.configs.themes.$currentTheme.PSObject.Properties
         foreach ($themeProperty in $themeProperties) {
-            # تطبيق properties that deal with colors
+            # Apply properties that deal with colors
             if ($themeProperty.Name -like "*color*") {
                 Set-ThemeResourceProperty -Name $themeProperty.Name -Value $themeProperty.Value -Type "ColorBrush"
                 # For certain color properties, also set complementary values (e.g., BorderColor -> CBorderColor) This is required because e.g DropShadowEffect requires a <Color> and not a <SolidColorBrush> object
@@ -3756,23 +3756,23 @@ function Invoke-WinutilThemeChange {
                     Set-ThemeResourceProperty -Name "C$($themeProperty.Name)" -Value $themeProperty.Value -Type "Color"
                 }
             }
-            # تطبيق corner radius properties
+            # Apply corner radius properties
             elseif ($themeProperty.Name -like "*Radius*") {
                 Set-ThemeResourceProperty -Name $themeProperty.Name -Value $themeProperty.Value -Type "CornerRadius"
             }
-            # تطبيق row height properties
+            # Apply row height properties
             elseif ($themeProperty.Name -like "*RowHeight*") {
                 Set-ThemeResourceProperty -Name $themeProperty.Name -Value $themeProperty.Value -Type "GridLength"
             }
-            # تطبيق thickness or margin properties
+            # Apply thickness or margin properties
             elseif (($themeProperty.Name -like "*Thickness*") -or ($themeProperty.Name -like "*margin")) {
                 Set-ThemeResourceProperty -Name $themeProperty.Name -Value $themeProperty.Value -Type "Thickness"
             }
-            # تطبيق font family properties
+            # Apply font family properties
             elseif ($themeProperty.Name -like "*FontFamily*") {
                 Set-ThemeResourceProperty -Name $themeProperty.Name -Value $themeProperty.Value -Type "FontFamily"
             }
-            # تطبيق any other properties as doubles (numerical values)
+            # Apply any other properties as doubles (numerical values)
             else {
                 Set-ThemeResourceProperty -Name $themeProperty.Name -Value $themeProperty.Value -Type "Double"
             }
@@ -3815,19 +3815,19 @@ function Invoke-WinutilThemeChange {
     $ThemeButton.Content = [string]$themeButtonIcon
 }
 
-function Invoke-WinUtilالتعديلات {
+function Invoke-WinUtilTweaks {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Invokes the function associated with each provided checkbox
 
-    .معامل CheckBox
+    .PARAMETER CheckBox
         The checkbox to invoke
 
-    .معامل undo
+    .PARAMETER undo
         Indicates whether to undo the operation contained in the checkbox
 
-    .معامل KeepServiceStartup
+    .PARAMETER KeepServiceStartup
         Indicates whether to override the startup of a service with the one given from WinUtil,
         or to keep the startup of said service, if it was changed by the user, or another program, from its default value.
     #>
@@ -3838,8 +3838,8 @@ function Invoke-WinUtilالتعديلات {
         $KeepServiceStartup = $true
     )
 
-    $action = if ($undo) { "Undo" } else { "تطبيق" }
-    Write-WinUtilLog -Component "التعديلات" -Message "$action tweak: $CheckBox"
+    $action = if ($undo) { "Undo" } else { "Apply" }
+    Write-WinUtilLog -Component "Tweaks" -Message "$action tweak: $CheckBox"
 
     if ($undo) {
         $Values = @{
@@ -3869,7 +3869,7 @@ function Invoke-WinUtilالتعديلات {
                         $changeservice = $false
                     }
                 } catch [System.ServiceProcess.ServiceNotFoundException] {
-                    Write-Warning "Service $($psitem.Name) غير موجود."
+                    Write-Warning "Service $($psitem.Name) was not found."
                 }
             }
 
@@ -3898,7 +3898,7 @@ function Invoke-WinUtilالتعديلات {
             Remove-WinUtilProvisionedAPPX -PackageList $sync.configs.tweaks.$CheckBox.appx
         }
     }
-    Write-WinUtilLog -Component "التعديلات" -Message "$action tweak completed: $CheckBox"
+    Write-WinUtilLog -Component "Tweaks" -Message "$action tweak completed: $CheckBox"
 }
 
 function Invoke-WinUtilUninstallPSProfile {
@@ -3914,14 +3914,14 @@ function Invoke-WinUtilUninstallPSProfile {
 
 function New-WinUtilFossBadge {
     <#
-        .ملخص
+        .SYNOPSIS
             Creates the FOSS marker: the open source keyhole on a green backdrop
-        .وصف
+        .DESCRIPTION
             Returns a fresh element on every call, because a WPF element can only have one parent.
             The artwork is authored in a 22x22 box and scaled by the Viewbox, so callers only pick a size.
-        .معامل Size
+        .PARAMETER Size
             Edge length of the badge in pixels
-        .معامل Round
+        .PARAMETER Round
             Use a full circle instead of the corner triangle, for the legend rather than an app entry
     #>
     param(
@@ -3969,13 +3969,13 @@ function New-WinUtilFossBadge {
 function Remove-WinUtilAPPX {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Removes all APPX packages that match the given name
 
-    .معامل Name
+    .PARAMETER Name
         The name of the APPX package to remove
 
-    .مثال
+    .EXAMPLE
         Remove-WinUtilAPPX -Name "Microsoft.Microsoft3DViewer"
 
     #>
@@ -3983,36 +3983,36 @@ function Remove-WinUtilAPPX {
         $Name
     )
 
-    Write-Host "جارٍ الإزالة: $Name"
-    Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "جارٍ الإزالة: إزالة تطبيقات النظام package pattern: $Name"
+    Write-Host "Removing $Name"
+    Write-WinUtilLog -Component "AppX" -Message "Removing AppX package pattern: $Name"
 
     # We explicitly loop through packages instead of using the pipeline because PowerShell 7 pipeline binding
-    # for Remove-AppxPackage fails silently, and Get-AppxPackage -الكلUsers returns duplicate objects for each user profile.
-    $pkgs = Get-AppxPackage "*$Name*" -الكلUsers | Sort-Object -Property PackageFullName -Unique
+    # for Remove-AppxPackage fails silently, and Get-AppxPackage -AllUsers returns duplicate objects for each user profile.
+    $pkgs = Get-AppxPackage "*$Name*" -AllUsers | Sort-Object -Property PackageFullName -Unique
     if ($null -ne $pkgs) {
         foreach ($pkg in $pkgs) {
             try {
-                Remove-AppxPackage -Package $pkg.PackageFullName -الكلUsers -ErrorAction Stop
+                Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction Stop
             }
             catch {
-                Write-WinUtilLog -Level "ERROR" -Component "إزالة تطبيقات النظام" -Message "Failed to remove إزالة تطبيقات النظام package $($pkg.PackageFullName): $($_.Exception.Message)"
+                Write-WinUtilLog -Level "ERROR" -Component "AppX" -Message "Failed to remove AppX package $($pkg.PackageFullName): $($_.Exception.Message)"
             }
         }
     }
 
-    Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "إزالة تطبيقات النظام removal completed for package pattern: $Name"
+    Write-WinUtilLog -Component "AppX" -Message "AppX removal completed for package pattern: $Name"
 }
 
 function Remove-WinUtilProvisionedAPPX {
     <#
 
-    .ملخص
-        Removes all إزالة تطبيقات النظام provisioned packages that match the given names
+    .SYNOPSIS
+        Removes all AppX provisioned packages that match the given names
 
-    .معامل PackageList
+    .PARAMETER PackageList
         An array of names of the APPX packages to remove
 
-    .مثال
+    .EXAMPLE
         Remove-WinUtilProvisionedAPPX -PackageList @("Microsoft.Microsoft3DViewer", "Microsoft.WindowsCalculator")
 
     #>
@@ -4024,8 +4024,8 @@ function Remove-WinUtilProvisionedAPPX {
         return
     }
 
-    Write-Host "`nجارٍ إزالة الحزم المُهيّأة..."
-    Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "جارٍ الإزالة: إزالة تطبيقات النظام provisioned packages: $($PackageList -join ', ')"
+    Write-Host "`nRemoving provisioned packages..."
+    Write-WinUtilLog -Component "AppX" -Message "Removing AppX provisioned packages: $($PackageList -join ', ')"
 
     # DISM cmdlets like Get-AppxProvisionedPackage often fail with "Class not registered" or hang in PowerShell 7.
     # We shell out to Windows PowerShell 5.1 (powershell.exe) to reliably remove the provisioned packages.
@@ -4044,7 +4044,7 @@ function Remove-WinUtilProvisionedAPPX {
                         Remove-AppxProvisionedPackage -Online -PackageName $prov.PackageName -ErrorAction Stop | Out-Null
                     }
                     catch {
-                        $failures.Add("Failed to remove provisioned إزالة تطبيقات النظام package $($prov.PackageName): $($_.Exception.Message)")
+                        $failures.Add("Failed to remove provisioned AppX package $($prov.PackageName): $($_.Exception.Message)")
                     }
                 }
             }
@@ -4058,25 +4058,25 @@ function Remove-WinUtilProvisionedAPPX {
     $removalOutput = powershell.exe -NoProfile -NonInteractive -Command $ps5Command -args $PackageList 2>&1
     if ($LASTEXITCODE -ne 0 -or $null -ne $removalOutput) {
         $failureDetails = ($removalOutput | Out-String).Trim()
-        $errorMessage = "إزالة تطبيقات النظام provisioned package removal failed: $failureDetails"
-        Write-WinUtilLog -Level "ERROR" -Component "إزالة تطبيقات النظام" -Message $errorMessage
+        $errorMessage = "AppX provisioned package removal failed: $failureDetails"
+        Write-WinUtilLog -Level "ERROR" -Component "AppX" -Message $errorMessage
         throw $errorMessage
     }
 
-    Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "إزالة تطبيقات النظام provisioned package removal completed."
+    Write-WinUtilLog -Component "AppX" -Message "AppX provisioned package removal completed."
 }
 
-function إعادة ضبط-WPFCheckBoxes {
+function Reset-WPFCheckBoxes {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Set winutil checkboxs to match $sync.selected values.
         Should only need to be run if $sync.selected updated outside of UI (i.e. presets or import)
 
-    .معامل doToggles
+    .PARAMETER doToggles
         Whether or not to set UI toggles. WARNING: they will trigger if altered
 
-    .معامل checkboxfilterpattern
+    .PARAMETER checkboxfilterpattern
         The Pattern to use when filtering through CheckBoxes, defaults to "**"
         Used to make reset blazingly fast.
     #>
@@ -4088,7 +4088,7 @@ function إعادة ضبط-WPFCheckBoxes {
         [Parameter(position=1)]
         [string]$checkboxfilterpattern = "**"
     )
-    $selectedSet = [System.Collections.Generic.HashSet[string]]::new([string[]]@($sync.selectedApps + $sync.selectedالتعديلات + $sync.selectedFeatures + $sync.selectedAppx), [StringComparer]::OrdinalIgnoreCase)
+    $selectedSet = [System.Collections.Generic.HashSet[string]]::new([string[]]@($sync.selectedApps + $sync.selectedTweaks + $sync.selectedFeatures + $sync.selectedAppx), [StringComparer]::OrdinalIgnoreCase)
 
     foreach ($syncEntry in $sync.GetEnumerator()) {
         if ($syncEntry.Value -is [System.Windows.Controls.CheckBox] -and $syncEntry.Name -notlike "WPFToggle*" -and $syncEntry.Name -like $checkboxfilterpattern) {
@@ -4097,7 +4097,7 @@ function إعادة ضبط-WPFCheckBoxes {
         }
     }
 
-    # Update تثبيتs tab UI values
+    # Update Installs tab UI values
     $count = $sync.SelectedApps.Count
     $sync.WPFselectedAppsButton.Content = "Selected Apps: $count"
     # On every change, remove all entries inside the Popup Menu. This is done, so we can keep the alphabetical order even if elements are selected in a random way
@@ -4122,7 +4122,7 @@ function إعادة ضبط-WPFCheckBoxes {
 
 function Save-WinUtilFile {
     <#
-    .ملخص
+    .SYNOPSIS
         Downloads a file and reports transfer progress.
     #>
     param(
@@ -4182,19 +4182,19 @@ function Save-WinUtilFile {
 
 function Set-WinUtilAppCategoryFilter {
     <#
-        .ملخص
-            Applies the تثبيت tab category filter and syncs the chip states to it
+        .SYNOPSIS
+            Applies the Install tab category filter and syncs the chip states to it
 
-        .وصف
+        .DESCRIPTION
             The selection lives in $sync.SelectedAppCategories. An empty selection means every
-            category is shown, which is what the الكل chip represents. The category filter and the
+            category is shown, which is what the All chip represents. The category filter and the
             search box are independent: this only touches categories, and the current search text
             is reapplied on top.
 
-        .معامل Category
-            The category to act on. An empty value clears the filter back to الكل.
+        .PARAMETER Category
+            The category to act on. An empty value clears the filter back to All.
 
-        .معامل Additive
+        .PARAMETER Additive
             Toggles this category in or out of the current selection instead of replacing it.
             Bound to ctrl click.
     #>
@@ -4234,42 +4234,42 @@ function Set-WinUtilAppCategoryFilter {
 function Set-WinUtilDNS {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Sets the DNS of all interfaces that are in the "Up" state. It will lookup the values from the DNS.Json file
 
-    .معامل DNSProvider
-        The مزوّد DNS to set the DNS server to
+    .PARAMETER DNSProvider
+        The DNS provider to set the DNS server to
 
-    .مثال
+    .EXAMPLE
         Set-WinUtilDNS -DNSProvider "google"
 
     #>
     param($DNSProvider)
 
     if($DNSProvider -eq "Default") {
-        Write-WinUtilLog -Component "DNS" -Message "مزوّد DNS is Default; no DNS changes applied."
+        Write-WinUtilLog -Component "DNS" -Message "DNS provider is Default; no DNS changes applied."
         return $true
     }
 
     try {
         $Adapters = Get-NetAdapter | Where-Object {$_.Status -eq "Up"}
-        Write-Host "جارٍ التأكد من ضبط DNS على $DNSProvider على الواجهات التالية:"
+        Write-Host "Ensuring DNS is set to $DNSProvider on the following interfaces:"
         Write-Host $($Adapters | Out-String)
-        Write-WinUtilLog -Component "DNS" -Message "Setting مزوّد DNS to $DNSProvider for $(@($Adapters).Count) active adapter(s)."
+        Write-WinUtilLog -Component "DNS" -Message "Setting DNS provider to $DNSProvider for $(@($Adapters).Count) active adapter(s)."
 
         if($DNSProvider -ne "DHCP") {
             $dns = $sync.configs.dns.$DNSProvider
             if($null -eq $dns) {
-                Write-Warning "مزوّد DNS $DNSProvider غير موجود في الإعداد."
-                Write-WinUtilLog -Level "ERROR" -Component "DNS" -Message "مزوّد DNS $DNSProvider غير موجود في الإعداد."
+                Write-Warning "DNS provider $DNSProvider was not found in configuration."
+                Write-WinUtilLog -Level "ERROR" -Component "DNS" -Message "DNS provider $DNSProvider was not found in configuration."
                 return $false
             }
         }
 
         $dohSupported = [bool](Get-Command Add-DnsClientDohServerAddress -ErrorAction SilentlyContinue)
         if ($DNSProvider -ne "DHCP" -and $dns.DohOnly -and -not $dohSupported) {
-            Write-Warning "مزوّد DNS $DNSProvider يتطلب DNS عبر HTTPS، وهذا غير مدعوم على هذا النظام."
-            Write-WinUtilLog -Level "ERROR" -Component "DNS" -Message "مزوّد DNS $DNSProvider يتطلب DNS عبر HTTPS، وهذا غير مدعوم على هذا النظام."
+            Write-Warning "DNS provider $DNSProvider requires DNS over HTTPS, which is not supported on this system."
+            Write-WinUtilLog -Level "ERROR" -Component "DNS" -Message "DNS provider $DNSProvider requires DNS over HTTPS, which is not supported on this system."
             return $false
         }
 
@@ -4279,28 +4279,28 @@ function Set-WinUtilDNS {
             $interfaceParams = "$dnscacheBase\$($Adapter.InterfaceGuid)"
 
             if($DNSProvider -eq "DHCP") {
-                Write-WinUtilLog -Component "DNS" -Message "إعادة ضبطting DNS to DHCP on adapter $($Adapter.Name) (ifIndex: $($Adapter.ifIndex))."
-                Set-DnsClientServerAddress -InterfaceIndex $Adapter.ifIndex -إعادة ضبطServerAddresses
+                Write-WinUtilLog -Component "DNS" -Message "Resetting DNS to DHCP on adapter $($Adapter.Name) (ifIndex: $($Adapter.ifIndex))."
+                Set-DnsClientServerAddress -InterfaceIndex $Adapter.ifIndex -ResetServerAddresses
                 netsh interface ip set dnsservers name="$($Adapter.Name)" source=dhcp
                 netsh interface ipv6 set dnsservers name="$($Adapter.Name)" source=dhcp
 
-                $dohInterfaceالإعدادات = "$interfaceParams\DohInterfaceالإعدادات"
-                if (Test-Path $dohInterfaceالإعدادات) {
+                $dohInterfaceSettings = "$interfaceParams\DohInterfaceSettings"
+                if (Test-Path $dohInterfaceSettings) {
                     if ($dohSupported) {
                         $dohServerAddresses = @(
-                            Get-ChildItem -Path "$dohInterfaceالإعدادات\Doh" -ErrorAction SilentlyContinue
-                            Get-ChildItem -Path "$dohInterfaceالإعدادات\Doh6" -ErrorAction SilentlyContinue
+                            Get-ChildItem -Path "$dohInterfaceSettings\Doh" -ErrorAction SilentlyContinue
+                            Get-ChildItem -Path "$dohInterfaceSettings\Doh6" -ErrorAction SilentlyContinue
                         ) | Select-Object -ExpandProperty PSChildName -Unique
 
                         foreach ($ip in $dohServerAddresses) {
                             if (Get-DnsClientDohServerAddress -ServerAddress $ip -ErrorAction SilentlyContinue) {
-                                Write-WinUtilLog -Component "DNS" -Message "جارٍ الإزالة: DoH registration for $ip."
+                                Write-WinUtilLog -Component "DNS" -Message "Removing DoH registration for $ip."
                                 Remove-DnsClientDohServerAddress -ServerAddress $ip -Confirm:$false -ErrorAction Stop
                             }
                         }
                     }
 
-                    Remove-Item -Path $dohInterfaceالإعدادات -Recurse -Force -ErrorAction SilentlyContinue
+                    Remove-Item -Path $dohInterfaceSettings -Recurse -Force -ErrorAction SilentlyContinue
                 }
             } else {
                 $ipv4Addresses = @(@($dns.Primary, $dns.Secondary) | Where-Object { $_ })
@@ -4317,14 +4317,14 @@ function Set-WinUtilDNS {
                             }
                             $existing = Get-DnsClientDohServerAddress -ServerAddress $ip -ErrorAction SilentlyContinue
                             if ($existing) {
-                                Set-DnsClientDohServerAddress -ServerAddress $ip -DohTemplate $dohTemplate -الكلowFallbackToUdp $false -AutoUpgrade $true -ErrorAction Stop
+                                Set-DnsClientDohServerAddress -ServerAddress $ip -DohTemplate $dohTemplate -AllowFallbackToUdp $false -AutoUpgrade $true -ErrorAction Stop
                             } else {
                                 Write-WinUtilLog -Component "DNS" -Message "Registering DoH template for $ip."
-                                Add-DnsClientDohServerAddress -ServerAddress $ip -DohTemplate $dohTemplate -الكلowFallbackToUdp $false -AutoUpgrade $true -ErrorAction Stop
+                                Add-DnsClientDohServerAddress -ServerAddress $ip -DohTemplate $dohTemplate -AllowFallbackToUdp $false -AutoUpgrade $true -ErrorAction Stop
                             }
 
                             $leaf = if ($ip.Contains(':')) { 'Doh6' } else { 'Doh' }
-                            $regPath = "$interfaceParams\DohInterfaceالإعدادات\$leaf\$ip"
+                            $regPath = "$interfaceParams\DohInterfaceSettings\$leaf\$ip"
 
                             if (-not (Test-Path $regPath)) {
                                 New-Item -Path $regPath -Force -ErrorAction Stop | Out-Null
@@ -4336,8 +4336,8 @@ function Set-WinUtilDNS {
                             throw
                         }
 
-                        Write-Warning "فشل إعداد DNS عبر HTTPS للمزوّد $DNSProvider فشل؛ جارٍ المتابعة بـ DNS العادي."
-                        Write-WinUtilLog -Level "WARN" -Component "DNS" -Message "فشل إعداد DNS عبر HTTPS للمزوّد $DNSProvider failed; continuing with plain DNS: $($psitem.Exception.Message)"
+                        Write-Warning "DNS over HTTPS setup for provider $DNSProvider failed; continuing with plain DNS."
+                        Write-WinUtilLog -Level "WARN" -Component "DNS" -Message "DNS over HTTPS setup for provider $DNSProvider failed; continuing with plain DNS: $($psitem.Exception.Message)"
                     }
                 }
 
@@ -4350,12 +4350,12 @@ function Set-WinUtilDNS {
         if ($DNSProvider -ne "DHCP" -and $dohSupported -and $dns.DohTemplate) {
             Clear-DnsClientCache
         }
-        Write-WinUtilLog -Component "DNS" -Message "مزوّد DNS change completed: $DNSProvider"
+        Write-WinUtilLog -Component "DNS" -Message "DNS provider change completed: $DNSProvider"
         return $true
     } catch {
-        Write-Warning "مزوّد DNS $DNSProvider لم يكتمل بسبب حدوث خطأ."
+        Write-Warning "DNS provider $DNSProvider was not completed because an error occurred."
         Write-Warning $psitem.Exception.Message
-        Write-WinUtilLog -Level "ERROR" -Component "DNS" -Message "مزوّد DNS $DNSProvider was not completed: $($psitem.Exception.Message)"
+        Write-WinUtilLog -Level "ERROR" -Component "DNS" -Message "DNS provider $DNSProvider was not completed: $($psitem.Exception.Message)"
         return $false
     }
 }
@@ -4363,22 +4363,22 @@ function Set-WinUtilDNS {
 function Set-WinUtilRegistry {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Modifies the registry based on the given inputs
 
-    .معامل Name
+    .PARAMETER Name
         The name of the key to modify
 
-    .معامل Path
+    .PARAMETER Path
         The path to the key
 
-    .معامل Type
+    .PARAMETER Type
         The type of value to set the key to
 
-    .معامل Value
+    .PARAMETER Value
         The value to set the key to
 
-    .مثال
+    .EXAMPLE
         Set-WinUtilRegistry -Name "PublishUserActivities" -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Type "DWord" -Value "0"
 
     #>
@@ -4393,7 +4393,7 @@ function Set-WinUtilRegistry {
         if(!(Test-Path 'HKU:\')) {New-PSDrive -PSProvider Registry -Name HKU -Root HKEY_USERS | Out-Null}
 
         If (!(Test-Path $Path)) {
-            Write-Host "$Path غير موجود. جارٍ الإنشاء..."
+            Write-Host "$Path was not found. Creating..."
             Write-WinUtilLog -Component "Registry" -Message "Creating registry path: $Path"
             New-Item -Path $Path -Force -ErrorAction Stop | Out-Null
         }
@@ -4405,11 +4405,11 @@ function Set-WinUtilRegistry {
         }
         else{
             Write-Host "Remove $Path\$Name"
-            Write-WinUtilLog -Component "Registry" -Message "جارٍ الإزالة: $Path\$Name"
+            Write-WinUtilLog -Component "Registry" -Message "Removing $Path\$Name"
             Remove-ItemProperty -Path $Path -Name $Name -Force -ErrorAction Stop | Out-Null
         }
     } catch [System.Security.SecurityException] {
-        Write-Warning "تعذّر تعيين $Path\$Name to $Value بسبب استثناء أمني."
+        Write-Warning "Unable to set $Path\$Name to $Value due to a Security Exception."
         Write-WinUtilLog -Level "ERROR" -Component "Registry" -Message "Security exception while changing $Path\$Name to $Value`: $($psitem.Exception.Message)"
     } catch [System.Management.Automation.ItemNotFoundException] {
         Write-Warning $psitem.Exception.ErrorRecord
@@ -4418,7 +4418,7 @@ function Set-WinUtilRegistry {
        Write-Warning $psitem.Exception.Message
        Write-WinUtilLog -Level "ERROR" -Component "Registry" -Message "Unauthorized while changing $Path\$Name`: $($psitem.Exception.Message)"
     } catch {
-        Write-Warning "تعذّر تعيين $Name بسبب استثناء غير معالَج."
+        Write-Warning "Unable to set $Name due to unhandled exception."
         Write-Warning $psitem.Exception.StackTrace
         Write-WinUtilLog -Level "ERROR" -Component "Registry" -Message "Unhandled exception while changing $Path\$Name`: $($psitem.Exception.Message)"
     }
@@ -4426,13 +4426,13 @@ function Set-WinUtilRegistry {
 
 function Set-WinUtilRegistryComboState {
     <#
-    .ملخص
+    .SYNOPSIS
         Applies and verifies a config-defined registry combo-box state.
 
-    .معامل Registry
-        إعدادات الريجستري التي تحتوي تعيين قيم لكل حالة مدعومة.
+    .PARAMETER Registry
+        Registry settings containing a value mapping for each supported state.
 
-    .معامل State
+    .PARAMETER State
         The state name to apply.
     #>
     param(
@@ -4506,16 +4506,16 @@ function Set-WinUtilRegistryComboState {
 Function Set-WinUtilService {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Changes the startup type of the given service
 
-    .معامل Name
+    .PARAMETER Name
         The name of the service to modify
 
-    .معامل StartupType
+    .PARAMETER StartupType
         The startup type to set the service to
 
-    .مثال
+    .EXAMPLE
         Set-WinUtilService -Name "HomeGroupListener" -StartupType "Manual"
 
     #>
@@ -4524,14 +4524,14 @@ Function Set-WinUtilService {
         $StartupType
     )
     try {
-        Write-Host "جارٍ ضبط الخدمة $Name to $StartupType"
+        Write-Host "Setting Service $Name to $StartupType"
         Write-WinUtilLog -Component "Service" -Message "Setting service $Name startup type to $StartupType"
 
         # Check if the service exists
         $service = Get-Service -Name $Name -ErrorAction Stop
 
         if (($service.PSObject.Properties.Name -contains "StartType") -and ([string]$service.StartType -eq [string]$StartupType) ) {
-            Write-Host "Service $Name مضبوطة بالفعل على $StartupType"
+            Write-Host "Service $Name is already set to $StartupType"
             Write-WinUtilLog -Component "Service" -Message "Service $Name startup type is already $StartupType; no change needed."
             return
         }
@@ -4548,12 +4548,12 @@ Function Set-WinUtilService {
         Write-WinUtilLog -Component "Service" -Message "Service $Name startup type set to $StartupType"
     } catch {
         if ($_.FullyQualifiedErrorId -like "NoServiceFoundForGivenName,*") {
-            Write-Warning "Service $Name غير موجود."
-            Write-WinUtilLog -Level "WARN" -Component "Service" -Message "Service $Name غير موجود."
+            Write-Warning "Service $Name was not found."
+            Write-WinUtilLog -Level "WARN" -Component "Service" -Message "Service $Name was not found."
         } else {
-            Write-Warning "تعذّر تعيين $Name بسبب استثناء غير معالَج."
+            Write-Warning "Unable to set $Name due to unhandled exception."
             Write-Warning $_.Exception.Message
-            Write-WinUtilLog -Level "ERROR" -Component "Service" -Message "تعذّر تعيين service $Name to $StartupType`: $($_.Exception.Message)"
+            Write-WinUtilLog -Level "ERROR" -Component "Service" -Message "Unable to set service $Name to $StartupType`: $($_.Exception.Message)"
         }
     }
 
@@ -4562,15 +4562,15 @@ Function Set-WinUtilService {
 function Set-WinUtilTaskbaritem {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Modifies the Taskbaritem of the WPF Form
 
-    .معامل value
+    .PARAMETER value
         Value can be between 0 and 1, 0 being no progress done yet and 1 being fully completed
         Value does not affect item without setting the state to 'Normal', 'Error' or 'Paused'
         Set-WinUtilTaskbaritem -value 0.5
 
-    .معامل state
+    .PARAMETER state
         State can be 'None' > No progress, 'Indeterminate' > inf. loading gray, 'Normal' > Gray, 'Error' > Red, 'Paused' > Yellow
         no value needed:
         - Set-WinUtilTaskbaritem -state "None"
@@ -4580,7 +4580,7 @@ function Set-WinUtilTaskbaritem {
         - Set-WinUtilTaskbaritem -state "Normal"
         - Set-WinUtilTaskbaritem -state "Paused"
 
-    .معامل overlay
+    .PARAMETER overlay
         Overlay icon to display on the taskbar item, there are the presets 'None', 'logo' and 'checkmark' or you can specify a path/link to an image file.
         CTT logo preset:
         - Set-WinUtilTaskbaritem -overlay "logo"
@@ -4593,7 +4593,7 @@ function Set-WinUtilTaskbaritem {
         Custom icon (needs to be supported by WPF):
         - Set-WinUtilTaskbaritem -overlay "C:\path\to\icon.png"
 
-    .معامل description
+    .PARAMETER description
         Description to display on the taskbar item preview
         Set-WinUtilTaskbaritem -description "This is a description"
     #>
@@ -4655,17 +4655,17 @@ function Set-WinUtilTaskbaritem {
     }
 }
 
-function Set-WinUtilالتعديلاتProgressIndicator {
+function Set-WinUtilTweaksProgressIndicator {
     <#
-    .ملخص
+    .SYNOPSIS
         Shows, updates, or hides the window-level progress indicator used by long-running
-        workflows such as app management, التعديلات, إزالة تطبيقات النظام management, and Win11 Creator.
+        workflows such as app management, Tweaks, AppX management, and Win11 Creator.
         It lives outside the TabControl, so it stays visible no matter which tab is active.
-    .معامل Visible
+    .PARAMETER Visible
         Whether the indicator should be shown or hidden.
-    .معامل Label
+    .PARAMETER Label
         The text to display above the progress bar.
-    .معامل Percent
+    .PARAMETER Percent
         The percentage of the progress bar that should be filled (0-100).
     #>
     param(
@@ -4685,82 +4685,82 @@ function Set-WinUtilالتعديلاتProgressIndicator {
     $hasPercent = $PSBoundParameters.ContainsKey('Percent')
 
     Invoke-WPFUIThread -ScriptBlock {
-        $sync.WPFالتعديلاتProgressBar.Visibility = $indicatorVisible
+        $sync.WPFTweaksProgressBar.Visibility = $indicatorVisible
         if ($hasLabel) {
-            $sync.WPFالتعديلاتProgressLabel.Text = $indicatorLabel
+            $sync.WPFTweaksProgressLabel.Text = $indicatorLabel
         }
         if ($hasPercent) {
-            $sync.WPFالتعديلاتProgressValue.Value = $Percent
+            $sync.WPFTweaksProgressValue.Value = $Percent
         }
     }
 }
 
 function Show-CustomDialog {
     <#
-    .ملخص
+    .SYNOPSIS
     Displays a custom dialog box with an image, heading, message, and an OK button.
 
-    .وصف
+    .DESCRIPTION
     This function creates a custom dialog box with the specified message and additional elements such as an image, heading, and an OK button. The dialog box is designed with a green border, rounded corners, and a black background.
 
-    .معامل Title
+    .PARAMETER Title
     The Title to use for the dialog window's Title Bar, this will not be visible by the user, as window styling is set to None.
 
-    .معامل Message
+    .PARAMETER Message
     The message to be displayed in the dialog box.
 
-    .معامل Width
+    .PARAMETER Width
     The width of the custom dialog window.
 
-    .معامل Height
+    .PARAMETER Height
     The height of the custom dialog window.
 
-    .معامل FontSize
+    .PARAMETER FontSize
     The Font Size of message shown inside custom dialog window.
 
-    .معامل HeaderFontSize
+    .PARAMETER HeaderFontSize
     The Font Size for the Header of custom dialog window.
 
-    .معامل LogoSize
+    .PARAMETER LogoSize
     The Size of the Logo used inside the custom dialog window.
 
-    .معامل ForegroundColor
+    .PARAMETER ForegroundColor
     The Foreground Color of dialog window title & message.
 
-    .معامل BackgroundColor
+    .PARAMETER BackgroundColor
     The Background Color of dialog window.
 
-    .معامل BorderColor
+    .PARAMETER BorderColor
     The Color for dialog window border.
 
-    .معامل ButtonBackgroundColor
+    .PARAMETER ButtonBackgroundColor
     The Background Color for Buttons in dialog window.
 
-    .معامل ButtonForegroundColor
+    .PARAMETER ButtonForegroundColor
     The Foreground Color for Buttons in dialog window.
 
-    .معامل ShadowColor
+    .PARAMETER ShadowColor
     The Color used when creating the Drop-down Shadow effect for dialog window.
 
-    .معامل LogoColor
+    .PARAMETER LogoColor
     The Color of WinUtil Text found next to WinUtil's Logo inside dialog window.
 
-    .معامل LinkForegroundColor
+    .PARAMETER LinkForegroundColor
     The Foreground Color for Links inside dialog window.
 
-    .معامل LinkHoverForegroundColor
+    .PARAMETER LinkHoverForegroundColor
     The Foreground Color for Links when the mouse pointer hovers over them inside dialog window.
 
-    .معامل EnableScroll
+    .PARAMETER EnableScroll
     A flag indicating whether to enable scrolling if the content exceeds the window size.
 
-    .مثال
+    .EXAMPLE
     Show-CustomDialog -Title "My Custom Dialog" -Message "This is a custom dialog with a message and an image above." -Width 300 -Height 200
 
     Makes a new Custom Dialog with the title 'My Custom Dialog' and a message 'This is a custom dialog with a message and an image above.', with dimensions of 300 by 200 pixels.
     Other styling options are grabbed from '$sync.Form.Resources' global variable.
 
-    .مثال
+    .EXAMPLE
     $foregroundColor = New-Object System.Windows.Media.SolidColorBrush("#0088e5")
     $backgroundColor = New-Object System.Windows.Media.SolidColorBrush("#1e1e1e")
     $linkForegroundColor = New-Object System.Windows.Media.SolidColorBrush("#0088e5")
@@ -4787,8 +4787,8 @@ function Show-CustomDialog {
         [System.Windows.Media.SolidColorBrush]$BorderColor = $sync.Form.Resources.BorderColor,
         [System.Windows.Media.SolidColorBrush]$ForegroundColor = $sync.Form.Resources.MainForegroundColor,
         [System.Windows.Media.SolidColorBrush]$BackgroundColor = $sync.Form.Resources.MainBackgroundColor,
-        [System.Windows.Media.SolidColorBrush]$ButtonForegroundColor = $sync.Form.Resources.ButtonتثبيتForegroundColor,
-        [System.Windows.Media.SolidColorBrush]$ButtonBackgroundColor = $sync.Form.Resources.ButtonتثبيتBackgroundColor,
+        [System.Windows.Media.SolidColorBrush]$ButtonForegroundColor = $sync.Form.Resources.ButtonInstallForegroundColor,
+        [System.Windows.Media.SolidColorBrush]$ButtonBackgroundColor = $sync.Form.Resources.ButtonInstallBackgroundColor,
         [System.Windows.Media.SolidColorBrush]$LinkForegroundColor = $sync.Form.Resources.LinkForegroundColor,
         [System.Windows.Media.SolidColorBrush]$LinkHoverForegroundColor = $sync.Form.Resources.LinkHoverForegroundColor,
 
@@ -4822,7 +4822,7 @@ function Show-CustomDialog {
     $dropShadow.ShadowDepth = 5
     $dropShadow.BlurRadius = 10
 
-    # تطبيق drop shadow effect to the border
+    # Apply drop shadow effect to the border
     $dialog.Effect = $dropShadow
 
     $dialog.Content = $border
@@ -4897,11 +4897,11 @@ function Show-CustomDialog {
         # Add the text before the hyperlink, if any
         $textBefore = $Message.Substring($lastPos, $match.Index - $lastPos)
         if ($textBefore.Length -gt 0) {
-            $messageTextBlock.Inlines.Add((New-Object Windows.المستنداتs.Run($textBefore)))
+            $messageTextBlock.Inlines.Add((New-Object Windows.Documents.Run($textBefore)))
         }
 
         # Create and add the hyperlink
-        $hyperlink = New-Object Windows.المستنداتs.Hyperlink
+        $hyperlink = New-Object Windows.Documents.Hyperlink
         $hyperlink.NavigateUri = New-Object System.Uri($match.Groups[1].Value)
         $hyperlink.Inlines.Add($match.Groups[2].Value)
         $hyperlink.TextDecorations = [Windows.TextDecorations]::None  # Remove underline
@@ -4936,12 +4936,12 @@ function Show-CustomDialog {
     # Add any remaining text after the last hyperlink
     if ($lastPos -lt $Message.Length) {
         $textAfter = $Message.Substring($lastPos)
-        $messageTextBlock.Inlines.Add((New-Object Windows.المستنداتs.Run($textAfter)))
+        $messageTextBlock.Inlines.Add((New-Object Windows.Documents.Run($textAfter)))
     }
 
     # If no matches, add the entire message as a run
     if ($regex.Matches($Message).Count -eq 0) {
-        $messageTextBlock.Inlines.Add((New-Object Windows.المستنداتs.Run($Message)))
+        $messageTextBlock.Inlines.Add((New-Object Windows.Documents.Run($Message)))
     }
 
     # Create a ScrollViewer if EnableScroll is true
@@ -4970,7 +4970,7 @@ function Show-CustomDialog {
     $okButton.Foreground = $buttonForegroundColor
     $okButton.BorderBrush = $BorderColor
     $okButton.Add_Click({
-        $dialog.إغلاق()
+        $dialog.Close()
     })
     $grid.Children.Add($okButton)
     [Windows.Controls.Grid]::SetRow($okButton, 2)  # Set the row to the third row (0-based index)
@@ -4978,7 +4978,7 @@ function Show-CustomDialog {
     # Handle Escape key press to close the dialog
     $dialog.Add_KeyDown({
         if ($_.Key -eq 'Escape') {
-            $dialog.إغلاق()
+            $dialog.Close()
         }
     })
 
@@ -4991,7 +4991,7 @@ function Show-CustomDialog {
 
 function Show-WinUtilMessage {
     <#
-    .ملخص
+    .SYNOPSIS
         Shows a WinUtil message box and returns the selected result.
     #>
     param (
@@ -5004,19 +5004,19 @@ function Show-WinUtilMessage {
     [System.Windows.MessageBox]::Show($Message, $Title, $Button, $Icon)
 }
 
-function Invoke-WinUtilتثبيتAppRenderBatch {
+function Invoke-WinUtilInstallAppRenderBatch {
     param(
         [Parameter(Mandatory = $true)]
         $CategoryBatch
     )
 
     foreach ($appKey in $CategoryBatch.AppKeys) {
-        $sync.$appKey = Initialize-تثبيتAppEntry -TargetElement $CategoryBatch.TargetElement -AppKey $appKey
+        $sync.$appKey = Initialize-InstallAppEntry -TargetElement $CategoryBatch.TargetElement -AppKey $appKey
     }
 
     # Entries render in batches, so a filter that is already active has to be applied to each new
     # batch. Categories count as an active filter just like search text does.
-    if ($sync.currentTab -eq "تثبيت" -and $sync.SearchBar) {
+    if ($sync.currentTab -eq "Install" -and $sync.SearchBar) {
         $selectedCategories = if ($sync.SelectedAppCategories) { $sync.SelectedAppCategories.ToArray() } else { @() }
 
         if (-not [string]::IsNullOrWhiteSpace($sync.SearchBar.Text) -or $selectedCategories.Count -gt 0) {
@@ -5025,60 +5025,60 @@ function Invoke-WinUtilتثبيتAppRenderBatch {
     }
 }
 
-function Complete-WinUtilتثبيتAppRendering {
-    $sync.تثبيتAppEntriesRendered = $true
+function Complete-WinUtilInstallAppRendering {
+    $sync.InstallAppEntriesRendered = $true
 }
 
-function Invoke-WinUtilتثبيتAppRenderNextBatch {
-    if ($sync.تثبيتAppRenderQueue.Count -gt 0) {
-        $categoryBatch = $sync.تثبيتAppRenderQueue.Dequeue()
-        Invoke-WinUtilتثبيتAppRenderBatch -CategoryBatch $categoryBatch
+function Invoke-WinUtilInstallAppRenderNextBatch {
+    if ($sync.InstallAppRenderQueue.Count -gt 0) {
+        $categoryBatch = $sync.InstallAppRenderQueue.Dequeue()
+        Invoke-WinUtilInstallAppRenderBatch -CategoryBatch $categoryBatch
     }
 
-    if ($sync.تثبيتAppRenderQueue.Count -gt 0) {
+    if ($sync.InstallAppRenderQueue.Count -gt 0) {
         $sync.Form.Dispatcher.BeginInvoke(
             [System.Windows.Threading.DispatcherPriority]::Background,
-            [action]{ Invoke-WinUtilتثبيتAppRenderNextBatch }
+            [action]{ Invoke-WinUtilInstallAppRenderNextBatch }
         ) | Out-Null
         return
     }
 
-    Complete-WinUtilتثبيتAppRendering
+    Complete-WinUtilInstallAppRendering
 }
 
-function Start-WinUtilتثبيتAppRendering {
-    if ($null -eq $sync.تثبيتAppRenderQueue) {
+function Start-WinUtilInstallAppRendering {
+    if ($null -eq $sync.InstallAppRenderQueue) {
         return
     }
 
-    $sync.تثبيتAppEntriesRendered = $false
+    $sync.InstallAppEntriesRendered = $false
 
     if ($sync.Form -and $sync.Form.Dispatcher) {
         $sync.Form.Dispatcher.BeginInvoke(
             [System.Windows.Threading.DispatcherPriority]::Background,
-            [action]{ Invoke-WinUtilتثبيتAppRenderNextBatch }
+            [action]{ Invoke-WinUtilInstallAppRenderNextBatch }
         ) | Out-Null
         return
     }
 
-    while ($sync.تثبيتAppRenderQueue.Count -gt 0) {
-        $categoryBatch = $sync.تثبيتAppRenderQueue.Dequeue()
-        Invoke-WinUtilتثبيتAppRenderBatch -CategoryBatch $categoryBatch
+    while ($sync.InstallAppRenderQueue.Count -gt 0) {
+        $categoryBatch = $sync.InstallAppRenderQueue.Dequeue()
+        Invoke-WinUtilInstallAppRenderBatch -CategoryBatch $categoryBatch
     }
 
-    Complete-WinUtilتثبيتAppRendering
+    Complete-WinUtilInstallAppRendering
 }
 
 function Test-WinUtilPackageManager {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Checks if WinGet and/or Choco are installed
 
-    .معامل winget
+    .PARAMETER winget
         Check if WinGet is installed
 
-    .معامل choco
+    .PARAMETER choco
         Check if Chocolatey is installed
 
     #>
@@ -5121,12 +5121,12 @@ function Test-WinUtilPackageManager {
 
 function Update-WinUtilAppCategoryChip {
     <#
-        .ملخص
-            Pushes the current category selection onto the تثبيت tab filter chips
+        .SYNOPSIS
+            Pushes the current category selection onto the Install tab filter chips
 
-        .وصف
+        .DESCRIPTION
             The chips are toggle buttons, so their checked state has to follow the selection
-            rather than whatever the last click did to them. The الكل chip is checked when no
+            rather than whatever the last click did to them. The All chip is checked when no
             category is selected.
     #>
     $selected = $sync.SelectedAppCategories
@@ -5151,7 +5151,7 @@ function Update-WinUtilSelections {
 
     $nextSelections = @{
         selectedApps     = [System.Collections.Generic.List[string]]::new()
-        selectedالتعديلات   = [System.Collections.Generic.List[string]]::new()
+        selectedTweaks   = [System.Collections.Generic.List[string]]::new()
         selectedToggles  = [System.Collections.Generic.List[string]]::new()
         selectedFeatures = [System.Collections.Generic.List[string]]::new()
         selectedAppx     = [System.Collections.Generic.List[string]]::new()
@@ -5161,7 +5161,7 @@ function Update-WinUtilSelections {
 
         $listName = switch -Regex ($cbkey) {
             '^WPFInstall' { 'selectedApps' }
-            '^WPFالتعديلات'  { 'selectedالتعديلات' }
+            '^WPFTweaks'  { 'selectedTweaks' }
             '^WPFToggle'  { 'selectedToggles' }
             '^WPFFeature' { 'selectedFeatures' }
             '^WPFAppx'    { 'selectedAppx' }
@@ -5179,7 +5179,7 @@ function Update-WinUtilSelections {
             'selectedApps' {
                 $sync.configs.applicationsHashtable.ContainsKey($cbkey)
             }
-            'selectedالتعديلات' {
+            'selectedTweaks' {
                 $null -ne $sync.configs.tweaks.PSObject.Properties[$cbkey]
             }
             'selectedToggles' {
@@ -5226,16 +5226,16 @@ function Update-WinUtilSelections {
 function Write-WinUtilLog {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Writes a timestamped WinUtil log entry to the active session log.
 
-    .معامل Message
+    .PARAMETER Message
         The message to write.
 
-    .معامل Level
+    .PARAMETER Level
         The severity level for the log entry.
 
-    .معامل Component
+    .PARAMETER Component
         The WinUtil component producing the log entry.
 
     #>
@@ -5301,7 +5301,7 @@ function Write-WinUtilLog {
             Write-Host $line
         }
     } catch {
-        Write-Warning "تعذّر كتابة سجل WinUtil: $($_.Exception.Message)"
+        Write-Warning "Unable to write WinUtil log entry: $($_.Exception.Message)"
     }
 }
 
@@ -5321,7 +5321,7 @@ function Initialize-WPFUI {
             $selectedAppsPopup.IsOpen = $false
             $selectedAppsPopup.PlacementTarget = $sync.WPFselectedAppsButton
             $selectedAppsPopup.Placement = [System.Windows.Controls.Primitives.PlacementMode]::Bottom
-            $selectedAppsPopup.الكلowsTransparency = $true
+            $selectedAppsPopup.AllowsTransparency = $true
 
             # Style the popup with a border and background
             $selectedAppsBorder = New-Object Windows.Controls.Border
@@ -5337,7 +5337,7 @@ function Initialize-WPFUI {
             $sync.selectedAppsstackPanel = New-Object Windows.Controls.StackPanel
             $selectedAppsBorder.Child = $sync.selectedAppsstackPanel
 
-            # إغلاق selectedAppsPopup when mouse leaves both button and selectedAppsPopup
+            # Close selectedAppsPopup when mouse leaves both button and selectedAppsPopup
             $sync.WPFselectedAppsButton.Add_MouseLeave({
                 if (-not $sync.selectedAppsPopup.IsMouseOver) {
                     $sync.selectedAppsPopup.IsOpen = $false
@@ -5355,7 +5355,7 @@ function Initialize-WPFUI {
             $appPopup = New-Object Windows.Controls.Primitives.Popup
             $appPopup.StaysOpen = $false
             $appPopup.Placement = [System.Windows.Controls.Primitives.PlacementMode]::Bottom
-            $appPopup.الكلowsTransparency = $true
+            $appPopup.AllowsTransparency = $true
             # Store the popup globally so the position can be set later
             $sync.appPopup = $appPopup
 
@@ -5367,7 +5367,7 @@ function Initialize-WPFUI {
             $appPopup.Child = $appPopupStackPanel
 
             $appButtons = @(
-            [PSCustomObject]@{ Name = "تثبيت";    Icon = [char]0xE118 },
+            [PSCustomObject]@{ Name = "Install";    Icon = [char]0xE118 },
             [PSCustomObject]@{ Name = "Uninstall";  Icon = [char]0xE74D },
             [PSCustomObject]@{ Name = "Info";       Icon = [char]0xE946 }
             )
@@ -5379,14 +5379,14 @@ function Initialize-WPFUI {
 
                 # Dynamically load the selected app object so the buttons can be reused and do not need to be created for each app
                 switch ($button.Name) {
-                    "تثبيت" {
+                    "Install" {
                         $newButton.Add_MouseEnter({
                             $appObject = $sync.configs.applicationsHashtable.$($sync.appPopupSelectedApp)
-                            $this.ToolTip = "تثبيت or Upgrade $($appObject.content)"
+                            $this.ToolTip = "Install or Upgrade $($appObject.content)"
                         })
                         $newButton.Add_Click({
                             $appObject = $sync.configs.applicationsHashtable.$($sync.appPopupSelectedApp)
-                            Invoke-WPFInstall -PackagesToتثبيت $appObject
+                            Invoke-WPFInstall -PackagesToInstall $appObject
                         })
                     }
                     "Uninstall" {
@@ -5396,7 +5396,7 @@ function Initialize-WPFUI {
                         })
                         $newButton.Add_Click({
                             $appObject = $sync.configs.applicationsHashtable.$($sync.appPopupSelectedApp)
-                            Invoke-WPFUnتثبيت -PackagesToUninstall $appObject
+                            Invoke-WPFUnInstall -PackagesToUninstall $appObject
                         })
                     }
                     "Info" {
@@ -5413,11 +5413,11 @@ function Initialize-WPFUI {
             }
         }
         "appspanel" {
-            $sync.ItemsControl = Initialize-تثبيتAppArea -TargetElement $TargetGridName
-            Initialize-تثبيتCategoryAppList -TargetElement $sync.ItemsControl -Apps $sync.configs.applicationsHashtable
+            $sync.ItemsControl = Initialize-InstallAppArea -TargetElement $TargetGridName
+            Initialize-InstallCategoryAppList -TargetElement $sync.ItemsControl -Apps $sync.configs.applicationsHashtable
         }
         default {
-            Write-Output "$TargetGridName لم يُنفَّذ بعد"
+            Write-Output "$TargetGridName not yet implemented"
         }
     }
 }
@@ -5426,8 +5426,8 @@ function Initialize-WPFUI {
 function Invoke-WinUtilAutoRun {
     <#
 
-    .ملخص
-        Runs تثبيت, التعديلات, and Features with optional UI invocation.
+    .SYNOPSIS
+        Runs Install, Tweaks, and Features with optional UI invocation.
     #>
 
     function BusyWait {
@@ -5437,7 +5437,7 @@ function Invoke-WinUtilAutoRun {
         }
     }
 
-    if ($sync.selectedالتعديلات.Count -gt 0) {
+    if ($sync.selectedTweaks.Count -gt 0) {
         Write-Host "جارٍ تطبيق التعديلات..."
         Invoke-WPFtweaksbutton
         BusyWait
@@ -5445,7 +5445,7 @@ function Invoke-WinUtilAutoRun {
 
     if ($sync.selectedFeatures.Count -gt 0) {
         Write-Host "جارٍ تطبيق الميزات..."
-        Invoke-WPFFeatureتثبيت
+        Invoke-WPFFeatureInstall
         BusyWait
     }
 
@@ -5456,7 +5456,7 @@ function Invoke-WinUtilAutoRun {
     }
 
     if ($sync.selectedAppx.Count -gt 0) {
-        Write-Host "جارٍ إزالة حزم إزالة تطبيقات النظام..."
+        Write-Host "جارٍ إزالة حزم AppX..."
         Invoke-WPFAppxRemoval
         BusyWait
     }
@@ -5464,14 +5464,14 @@ function Invoke-WinUtilAutoRun {
     Write-Host "اكتملت العملية."
 }
 
-function Invoke-WPFAppxتثبيت {
+function Invoke-WPFAppxInstall {
     if ($sync.ProcessRunning) {
-        Show-WinUtilMessage -Message "An إزالة تطبيقات النظام process is currently running." -Title "WinUtil" -Button "OK" -Icon "Warning"
+        Show-WinUtilMessage -Message "An AppX process is currently running." -Title "WinUtil" -Button "OK" -Icon "Warning"
         return
     }
 
     if ($null -eq $sync.selectedAppx -or $sync.selectedAppx.Count -eq 0) {
-        Show-WinUtilMessage -Message "No إزالة تطبيقات النظام Package selected" -Title "Error" -Button "OK" -Icon "Error"
+        Show-WinUtilMessage -Message "No AppX Package selected" -Title "Error" -Button "OK" -Icon "Error"
         return
     }
 
@@ -5486,9 +5486,9 @@ function Invoke-WPFAppxتثبيت {
         $hasUI = $null -ne $sync.Form -and $null -ne $sync.Form.Dispatcher
 
         try {
-            Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "Starting إزالة تطبيقات النظام install for $totalPackages selected package(s)."
+            Write-WinUtilLog -Component "AppX" -Message "Starting AppX install for $totalPackages selected package(s)."
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Preparing إزالة تطبيقات النظام install (0/$totalPackages)" -Percent 0
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Preparing AppX install (0/$totalPackages)" -Percent 0
                 Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "Normal" -value 0.01 -overlay "logo" }
             }
 
@@ -5499,31 +5499,31 @@ function Invoke-WPFAppxتثبيت {
                 $startPercent = [int](($index / $totalPackages) * 100)
 
                 if ($hasUI) {
-                    Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "جارٍ التثبيت: $($app.Content) ($position/$totalPackages)" -Percent $startPercent
+                    Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Installing $($app.Content) ($position/$totalPackages)" -Percent $startPercent
                 }
-                Write-Host "جارٍ التثبيت: $($app.Content)"
-                تثبيت-WinUtilAPPX -Name $app.PackageId -StoreId $app.StoreId
+                Write-Host "Installing $($app.Content)"
+                Install-WinUtilAPPX -Name $app.PackageId -StoreId $app.StoreId
 
                 $completedPercent = [int](($position / $totalPackages) * 100)
                 if ($hasUI) {
-                    Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "تثبيتed $($app.Content) ($position/$totalPackages)" -Percent $completedPercent
+                    Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Installed $($app.Content) ($position/$totalPackages)" -Percent $completedPercent
                     Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -value ($completedPercent / 100) }
                 }
             }
 
             Write-Host "================================="
-            Write-Host "--   اكتمل تثبيت إزالة تطبيقات النظام   ---"
+            Write-Host "--   اكتمل تثبيت AppX   ---"
             Write-Host "================================="
-            Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "إزالة تطبيقات النظام install finished."
+            Write-WinUtilLog -Component "AppX" -Message "AppX install finished."
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "إزالة تطبيقات النظام install finished" -Percent 100
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "AppX install finished" -Percent 100
                 Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "None" -overlay "checkmark" }
             }
         }
         catch {
-            Write-WinUtilLog -Level "ERROR" -Component "إزالة تطبيقات النظام" -Message "إزالة تطبيقات النظام install failed: $($_.Exception.Message)"
+            Write-WinUtilLog -Level "ERROR" -Component "AppX" -Message "AppX install failed: $($_.Exception.Message)"
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "إزالة تطبيقات النظام install failed" -Percent 100
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "AppX install failed" -Percent 100
                 Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "Error" -overlay "warning" }
             }
         }
@@ -5535,12 +5535,12 @@ function Invoke-WPFAppxتثبيت {
 
 function Invoke-WPFAppxRemoval {
     if ($sync.ProcessRunning) {
-        Show-WinUtilMessage -Message "An إزالة تطبيقات النظام process is currently running." -Title "WinUtil" -Button "OK" -Icon "Warning"
+        Show-WinUtilMessage -Message "An AppX process is currently running." -Title "WinUtil" -Button "OK" -Icon "Warning"
         return
     }
 
     if ($null -eq $sync.selectedAppx -or $sync.selectedAppx.Count -eq 0) {
-        Show-WinUtilMessage -Message "No إزالة تطبيقات النظام Package selected" -Title "Error" -Button "OK" -Icon "Error"
+        Show-WinUtilMessage -Message "No AppX Package selected" -Title "Error" -Button "OK" -Icon "Error"
         return
     }
 
@@ -5556,9 +5556,9 @@ function Invoke-WPFAppxRemoval {
         $packageList = [System.Collections.Generic.List[string]]::new()
 
         try {
-            Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "Starting إزالة تطبيقات النظام removal for $totalPackages selected package(s)."
+            Write-WinUtilLog -Component "AppX" -Message "Starting AppX removal for $totalPackages selected package(s)."
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Preparing إزالة تطبيقات النظام removal (0/$totalPackages)" -Percent 0
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Preparing AppX removal (0/$totalPackages)" -Percent 0
                 Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "Normal" -value 0.01 -overlay "logo" }
             }
 
@@ -5568,62 +5568,62 @@ function Invoke-WPFAppxRemoval {
                 $position = $index + 1
                 $startPercent = [int](($index / $totalPackages) * 90)
                 if ($hasUI) {
-                    Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "جارٍ الإزالة: $($app.Content) ($position/$totalPackages)" -Percent $startPercent
+                    Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Removing $($app.Content) ($position/$totalPackages)" -Percent $startPercent
                 }
 
                 if ($key -eq "WPFAppxMicrosoft_XboxGamingOverlay") {
                     # Making sure Game Bar isn't running
-                    Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "Stopping GameBarFTServer before removing Xbox Gaming Overlay."
+                    Write-WinUtilLog -Component "AppX" -Message "Stopping GameBarFTServer before removing Xbox Gaming Overlay."
                     Stop-Process -Name GameBarFTServer -Force -Confirm:$false -ErrorAction SilentlyContinue
 
                     # This stops annoying ms-gamebar popup when launching games.
-                    Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "Disabling Game DVR capture before removing Xbox Gaming Overlay."
+                    Write-WinUtilLog -Component "AppX" -Message "Disabling Game DVR capture before removing Xbox Gaming Overlay."
                     Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR -Name AppCaptureEnabled -Value 0
                 }
 
                 if ($key -eq "WPFAppxMicrosoft_WindowsNotepad") {
-                    Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "Stopping dllhost before removing Notepad."
+                    Write-WinUtilLog -Component "AppX" -Message "Stopping dllhost before removing Notepad."
                     Stop-Process -Name dllhost -Force -Confirm:$false -ErrorAction SilentlyContinue
                 }
 
-                Write-Host "جارٍ الإزالة: $($app.Content)"
-                Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "جارٍ الإزالة: $($app.Content) ($($app.PackageId))."
+                Write-Host "Removing $($app.Content)"
+                Write-WinUtilLog -Component "AppX" -Message "Removing $($app.Content) ($($app.PackageId))."
                 Remove-WinUtilAPPX -Name $app.PackageId
                 $packageList.Add($app.PackageId)
 
                 if ($key -eq "WPFAppxMSTeams") {
                     # Uninstalls Microsoft Teams Meeting Add-in for Microsoft Office
-                    Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "جارٍ إلغاء التثبيت: Microsoft Teams meeting add-in package."
+                    Write-WinUtilLog -Component "AppX" -Message "Uninstalling Microsoft Teams meeting add-in package."
                     Get-Package -Name "Microsoft Teams*" -ErrorAction SilentlyContinue | Uninstall-Package -Force
                 }
 
                 $completedPercent = [int](($position / $totalPackages) * 90)
                 if ($hasUI) {
-                    Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Removed $($app.Content) ($position/$totalPackages)" -Percent $completedPercent
+                    Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Removed $($app.Content) ($position/$totalPackages)" -Percent $completedPercent
                     Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -value ($completedPercent / 100) }
                 }
             }
 
             if ($packageList.Count -gt 0) {
                 if ($hasUI) {
-                    Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "جارٍ الإزالة: provisioned إزالة تطبيقات النظام packages" -Percent 90
+                    Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Removing provisioned AppX packages" -Percent 90
                 }
                 Remove-WinUtilProvisionedAPPX -PackageList $packageList.ToArray()
             }
 
             Write-Host "================================="
-            Write-Host "--   اكتملت إزالة إزالة تطبيقات النظام   ---"
+            Write-Host "--   اكتملت إزالة AppX   ---"
             Write-Host "================================="
-            Write-WinUtilLog -Component "إزالة تطبيقات النظام" -Message "إزالة تطبيقات النظام removal finished."
+            Write-WinUtilLog -Component "AppX" -Message "AppX removal finished."
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "إزالة تطبيقات النظام removal finished" -Percent 100
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "AppX removal finished" -Percent 100
                 Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "None" -overlay "checkmark" }
             }
         }
         catch {
-            Write-WinUtilLog -Level "ERROR" -Component "إزالة تطبيقات النظام" -Message "إزالة تطبيقات النظام removal failed: $($_.Exception.Message)"
+            Write-WinUtilLog -Level "ERROR" -Component "AppX" -Message "AppX removal failed: $($_.Exception.Message)"
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "إزالة تطبيقات النظام removal failed" -Percent 100
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "AppX removal failed" -Percent 100
                 Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "Error" -overlay "warning" }
             }
         }
@@ -5638,10 +5638,10 @@ function Invoke-WPFButton {
 
     <#
 
-    .ملخص
+    .SYNOPSIS
         Invokes the function associated with the clicked button
 
-    .معامل Button
+    .PARAMETER Button
         The name of the button that was clicked
 
     #>
@@ -5651,16 +5651,16 @@ function Invoke-WPFButton {
     # Use this to get the name of the button
     #[System.Windows.MessageBox]::Show("$Button","Chris Titus Tech's Windows Utility","OK","Info")
     if (-not $sync.ProcessRunning -and -not $sync.Win11ISOProcessRunning) {
-        Set-WinUtilالتعديلاتProgressIndicator -Visible $false
+        Set-WinUtilTweaksProgressIndicator -Visible $false
     }
 
     # Check if button is defined in feature config with function or InvokeScript
     if ($sync.configs.feature.$Button) {
-        $buttonالإعداد = $sync.configs.feature.$Button
+        $buttonConfig = $sync.configs.feature.$Button
 
         # If button has a function defined, call it
-        if ($buttonالإعداد.function) {
-            $functionName = $buttonالإعداد.function
+        if ($buttonConfig.function) {
+            $functionName = $buttonConfig.function
             if (Get-Command $functionName -ErrorAction SilentlyContinue) {
                 & $functionName
                 return
@@ -5668,8 +5668,8 @@ function Invoke-WPFButton {
         }
 
         # If button has InvokeScript defined, execute the scripts
-        if ($buttonالإعداد.InvokeScript -and $buttonالإعداد.InvokeScript.Count -gt 0) {
-            foreach ($script in $buttonالإعداد.InvokeScript) {
+        if ($buttonConfig.InvokeScript -and $buttonConfig.InvokeScript.Count -gt 0) {
+            foreach ($script in $buttonConfig.InvokeScript) {
                 if (-not [string]::IsNullOrWhiteSpace($script)) {
                     Invoke-Command -ScriptBlock ([scriptblock]::Create($script)) -ErrorAction Stop
                 }
@@ -5682,46 +5682,46 @@ function Invoke-WPFButton {
     Switch -Wildcard ($Button) {
         "WPFTab?BT" {Invoke-WPFTab $Button}
         "WPFInstall" {Invoke-WPFInstall}
-        "WPFUninstall" {Invoke-WPFUnتثبيت}
+        "WPFUninstall" {Invoke-WPFUnInstall}
         "WPFInstallUpgrade" {Invoke-WPFInstallUpgrade}
-        "WPFCollapseالكلCategories" {Invoke-WPFToggleالكلCategories -Action "Collapse"}
-        "WPFExpandالكلCategories" {Invoke-WPFToggleالكلCategories -Action "Expand"}
+        "WPFCollapseAllCategories" {Invoke-WPFToggleAllCategories -Action "Collapse"}
+        "WPFExpandAllCategories" {Invoke-WPFToggleAllCategories -Action "Expand"}
         "WPFStandard" {Invoke-WPFPresets "Standard" -checkboxfilterpattern "WPFTweak*"}
         "WPFMinimal" {Invoke-WPFPresets "Minimal" -checkboxfilterpattern "WPFTweak*"}
         "WPFAdvanced" {Invoke-WPFPresets "Advanced" -checkboxfilterpattern "WPFTweak*"}
-        "WPFClearالتعديلاتSelection" {Invoke-WPFPresets -imported $true -checkboxfilterpattern "WPFTweak*"}
-        "WPFClearتثبيتSelection" {Invoke-WPFPresets -imported $true -checkboxfilterpattern "WPFInstall*"}
+        "WPFClearTweaksSelection" {Invoke-WPFPresets -imported $true -checkboxfilterpattern "WPFTweak*"}
+        "WPFClearInstallSelection" {Invoke-WPFPresets -imported $true -checkboxfilterpattern "WPFInstall*"}
         "WPFtweaksbutton" {Invoke-WPFtweaksbutton}
         "WPFOOSUbutton" {Invoke-WPFOOSU}
         "WPFAddUltPerf" {Invoke-WPFUltimatePerformance -Enable}
         "WPFRemoveUltPerf" {Invoke-WPFUltimatePerformance}
         "WPFundoall" {Invoke-WPFundoall}
-        "WPFالتحديثاتdefault" {Invoke-WPFالتحديثاتdefault}
-        "WPFالتحديثاتdisable" {Invoke-WPFالتحديثاتdisable}
-        "WPFالتحديثاتsecurity" {Invoke-WPFالتحديثاتsecurity}
-        "WPFGetتثبيتed" {Invoke-WPFGetتثبيتed -CheckBox "winget"}
-        "WPFGetتثبيتedالتعديلات" {Invoke-WPFGetتثبيتed -CheckBox "tweaks"}
+        "WPFUpdatesdefault" {Invoke-WPFUpdatesdefault}
+        "WPFUpdatesdisable" {Invoke-WPFUpdatesdisable}
+        "WPFUpdatessecurity" {Invoke-WPFUpdatessecurity}
+        "WPFGetInstalled" {Invoke-WPFGetInstalled -CheckBox "winget"}
+        "WPFGetInstalledTweaks" {Invoke-WPFGetInstalled -CheckBox "tweaks"}
         "WPFAppxRemoval" {Invoke-WPFTab "WPFTab6BT"}
-        "WPFBackToالتعديلات" {Invoke-WPFTab "WPFTab2BT"}
-        "WPFInstallSelectedAppx" {Invoke-WPFAppxتثبيت}
+        "WPFBackToTweaks" {Invoke-WPFTab "WPFTab2BT"}
+        "WPFInstallSelectedAppx" {Invoke-WPFAppxInstall}
         "WPFRemoveSelectedAppx" {Invoke-WPFAppxRemoval}
         "WPFDefaultAppxSelection" {Invoke-WPFPresets "AppxDefault" -checkboxfilterpattern "WPFAppx*"}
-        "WPFSelectالكلAppx" {
+        "WPFSelectAllAppx" {
             $sync.configs.appxHashtable.Keys | ForEach-Object {$sync.$_.IsChecked = $true}
         }
         "WPFClearAppxSelection" {
             $sync.configs.appxHashtable.Keys | ForEach-Object {$sync.$_.IsChecked = $false}
         }
-        "WPFGetتثبيتedAppx" {
-            $installedAppxPackages = Get-WinUtilتثبيتedAPPX
+        "WPFGetInstalledAppx" {
+            $installedAppxPackages = Get-WinUtilInstalledAPPX
             foreach ($appx in $sync.configs.appxHashtable.GetEnumerator()) {
                 if ($appx.Value.PackageId -in $installedAppxPackages) {
                     $sync.$($appx.Key).IsChecked = $true
                 }
             }
         }
-        "WPFإغلاقButton" {$sync.Form.إغلاق(); Write-Host "إلى اللقاء!"}
-        "WPFتصغيرButton" {[Windows.SystemCommands]::تصغيرWindow($sync.Form)}
+        "WPFCloseButton" {$sync.Form.Close(); Write-Host "إلى اللقاء!"}
+        "WPFMinimizeButton" {[Windows.SystemCommands]::MinimizeWindow($sync.Form)}
         "WPFMaximizeButton" {
             if ($sync.Form.WindowState -eq [Windows.WindowState]::Normal) {
                 [Windows.SystemCommands]::MaximizeWindow($sync.Form)
@@ -5733,16 +5733,16 @@ function Invoke-WPFButton {
     }
 }
 
-function Invoke-WPFFeatureتثبيت {
+function Invoke-WPFFeatureInstall {
     <#
 
-    .ملخص
-        تثبيتs selected Windows Features
+    .SYNOPSIS
+        Installs selected Windows Features
 
     #>
 
     if($sync.ProcessRunning) {
-        $msg = "[Invoke-WPFFeatureتثبيت] تثبيت process is currently running."
+        $msg = "[Invoke-WPFFeatureInstall] Install process is currently running."
         [System.Windows.MessageBox]::Show($msg, "Winutil", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning)
         return
     }
@@ -5759,7 +5759,7 @@ function Invoke-WPFFeatureتثبيت {
         $x = 0
 
         $Features | ForEach-Object {
-            Invoke-WinUtilFeatureتثبيت $_
+            Invoke-WinUtilFeatureInstall $_
             $X++
             Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -value ($x/$Features.Count) }
         }
@@ -5782,10 +5782,10 @@ function Invoke-WPFFixesNetwork {
 
 function Invoke-WPFFixesNTPPool {
     <#
-    .ملخص
-        الإعدادures Windows to use pool.ntp.org for NTP synchronization
+    .SYNOPSIS
+        Configures Windows to use pool.ntp.org for NTP synchronization
 
-    .وصف
+    .DESCRIPTION
         Replaces the default Windows NTP server (time.windows.com) with
         pool.ntp.org for improved time synchronization accuracy and reliability.
     #>
@@ -5805,10 +5805,10 @@ function Invoke-WPFFixesUpdate {
 
     <#
 
-    .ملخص
+    .SYNOPSIS
         Performs various tasks in an attempt to repair Windows Update
 
-    .وصف
+    .DESCRIPTION
         1. (Aggressive Only) Scans the system for corruption using the Invoke-WPFSystemRepair function
         2. Stops Windows Update Services
         3. Remove the QMGR Data file, which stores BITS jobs
@@ -5817,15 +5817,15 @@ function Invoke-WPFFixesUpdate {
             CatRoot2 - Contains the Signatures for Windows Update Packages
         5. Renames the Windows Update Download Folder
         6. Deletes the Windows Update Log
-        7. (Aggressive Only) إعادة ضبطs the Security Descriptors on the Windows Update Services
+        7. (Aggressive Only) Resets the Security Descriptors on the Windows Update Services
         8. Reregisters the BITS and Windows Update DLLs
         9. Removes the WSUS client settings
-        10. إعادة ضبطs WinSock
+        10. Resets WinSock
         11. Gets and deletes all BITS jobs
         12. Sets the startup type of the Windows Update Services then starts them
         13. Forces Windows Update to check for updates
 
-    .معامل Aggressive
+    .PARAMETER Aggressive
         If specified, the script will take additional steps to repair Windows Update that are more dangerous, take a significant amount of time, or are generally unnecessary
 
     #>
@@ -5857,36 +5857,36 @@ function Invoke-WPFFixesUpdate {
 
 
     # Remove the QMGR Data file
-    Write-Progress -Id 0 -Activity "Repairing Windows Update" -Status "Renaming/جارٍ الإزالة: Files..." -PercentComplete 20
-    Write-Progress -Id 3 -ParentId 0 -Activity "Renaming/جارٍ الإزالة: Files" -Status "جارٍ الإزالة: QMGR Data files..." -PercentComplete 0
+    Write-Progress -Id 0 -Activity "Repairing Windows Update" -Status "Renaming/Removing Files..." -PercentComplete 20
+    Write-Progress -Id 3 -ParentId 0 -Activity "Renaming/Removing Files" -Status "Removing QMGR Data files..." -PercentComplete 0
     Remove-Item "$env:allusersprofile\Application Data\Microsoft\Network\Downloader\qmgr*.dat" -ErrorAction SilentlyContinue
 
 
     if ($Aggressive) {
         # Rename the Windows Update Log and Signature Folders
-        Write-Progress -Id 3 -ParentId 0 -Activity "Renaming/جارٍ الإزالة: Files" -Status "Renaming the Windows Update Log, Download, and Signature Folder..." -PercentComplete 20
+        Write-Progress -Id 3 -ParentId 0 -Activity "Renaming/Removing Files" -Status "Renaming the Windows Update Log, Download, and Signature Folder..." -PercentComplete 20
         Rename-Item $env:systemroot\SoftwareDistribution\DataStore DataStore.bak -ErrorAction SilentlyContinue
         Rename-Item $env:systemroot\System32\Catroot2 catroot2.bak -ErrorAction SilentlyContinue
     }
 
     # Rename the Windows Update Download Folder
-    Write-Progress -Id 3 -ParentId 0 -Activity "Renaming/جارٍ الإزالة: Files" -Status "Renaming the Windows Update Download Folder..." -PercentComplete 20
+    Write-Progress -Id 3 -ParentId 0 -Activity "Renaming/Removing Files" -Status "Renaming the Windows Update Download Folder..." -PercentComplete 20
     Rename-Item $env:systemroot\SoftwareDistribution\Download Download.bak -ErrorAction SilentlyContinue
 
     # Delete the legacy Windows Update Log
-    Write-Progress -Id 3 -ParentId 0 -Activity "Renaming/جارٍ الإزالة: Files" -Status "جارٍ الإزالة: the old Windows Update log..." -PercentComplete 80
+    Write-Progress -Id 3 -ParentId 0 -Activity "Renaming/Removing Files" -Status "Removing the old Windows Update log..." -PercentComplete 80
     Remove-Item $env:systemroot\WindowsUpdate.log -ErrorAction SilentlyContinue
-    Write-Progress -Id 3 -ParentId 0 -Activity "Renaming/جارٍ الإزالة: Files" -Status "Completed" -PercentComplete 100
+    Write-Progress -Id 3 -ParentId 0 -Activity "Renaming/Removing Files" -Status "Completed" -PercentComplete 100
 
 
     if ($Aggressive) {
-        # إعادة ضبط the Security Descriptors on the Windows Update Services
-        Write-Progress -Id 0 -Activity "Repairing Windows Update" -Status "إعادة ضبطting the WU Service Security Descriptors..." -PercentComplete 25
-        Write-Progress -Id 4 -ParentId 0 -Activity "إعادة ضبطting the WU Service Security Descriptors" -Status "إعادة ضبطting the BITS Security Descriptor..." -PercentComplete 0
+        # Reset the Security Descriptors on the Windows Update Services
+        Write-Progress -Id 0 -Activity "Repairing Windows Update" -Status "Resetting the WU Service Security Descriptors..." -PercentComplete 25
+        Write-Progress -Id 4 -ParentId 0 -Activity "Resetting the WU Service Security Descriptors" -Status "Resetting the BITS Security Descriptor..." -PercentComplete 0
         Start-Process -NoNewWindow -FilePath "sc.exe" -ArgumentList "sdset", "bits", "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;AU)(A;;CCLCSWRPWPDTLOCRRC;;;PU)" -Wait
-        Write-Progress -Id 4 -ParentId 0 -Activity "إعادة ضبطting the WU Service Security Descriptors" -Status "إعادة ضبطting the wuauserv Security Descriptor..." -PercentComplete 50
+        Write-Progress -Id 4 -ParentId 0 -Activity "Resetting the WU Service Security Descriptors" -Status "Resetting the wuauserv Security Descriptor..." -PercentComplete 50
         Start-Process -NoNewWindow -FilePath "sc.exe" -ArgumentList "sdset", "wuauserv", "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;AU)(A;;CCLCSWRPWPDTLOCRRC;;;PU)" -Wait
-        Write-Progress -Id 4 -ParentId 0 -Activity "إعادة ضبطting the WU Service Security Descriptors" -Status "Completed" -PercentComplete 100
+        Write-Progress -Id 4 -ParentId 0 -Activity "Resetting the WU Service Security Descriptors" -Status "Completed" -PercentComplete 100
     }
 
 
@@ -5915,17 +5915,17 @@ function Invoke-WPFFixesUpdate {
 
     # Remove the WSUS client settings
     if (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate") {
-        Write-Progress -Id 0 -Activity "Repairing Windows Update" -Status "جارٍ الإزالة: WSUS client settings..." -PercentComplete 60
-        Write-Progress -Id 6 -ParentId 0 -Activity "جارٍ الإزالة: WSUS client settings" -PercentComplete 0
+        Write-Progress -Id 0 -Activity "Repairing Windows Update" -Status "Removing WSUS client settings..." -PercentComplete 60
+        Write-Progress -Id 6 -ParentId 0 -Activity "Removing WSUS client settings" -PercentComplete 0
         Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate" -Name "AccountDomainSid" -ErrorAction SilentlyContinue
         Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate" -Name "PingID" -ErrorAction SilentlyContinue
         Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate" -Name "SusClientId" -ErrorAction SilentlyContinue
-        Write-Progress -Id 6 -ParentId 0 -Activity "جارٍ الإزالة: WSUS client settings" -Status "Completed" -PercentComplete 100
+        Write-Progress -Id 6 -ParentId 0 -Activity "Removing WSUS client settings" -Status "Completed" -PercentComplete 100
     }
 
     # Remove Group Policy Windows Update settings
-    Write-Progress -Id 0 -Activity "Repairing Windows Update" -Status "جارٍ الإزالة: Group Policy Windows Update settings..." -PercentComplete 60
-    Write-Progress -Id 7 -ParentId 0 -Activity "جارٍ الإزالة: Group Policy Windows Update settings" -PercentComplete 0
+    Write-Progress -Id 0 -Activity "Repairing Windows Update" -Status "Removing Group Policy Windows Update settings..." -PercentComplete 60
+    Write-Progress -Id 7 -ParentId 0 -Activity "Removing Group Policy Windows Update settings" -PercentComplete 0
     Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "ExcludeWUDriversInQualityUpdate" -ErrorAction SilentlyContinue
     Write-Host "جارٍ إعادة تعيين عرض التعريفات عبر Windows Update للافتراضي..."
     Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata" -Name "PreventDeviceMetadataFromNetwork" -ErrorAction SilentlyContinue
@@ -5937,9 +5937,9 @@ function Invoke-WPFFixesUpdate {
     Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoRebootWithLoggedOnUsers" -ErrorAction SilentlyContinue
     Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "AUPowerManagement" -ErrorAction SilentlyContinue
     Write-Host "جارٍ مسح جميع إعدادات سياسة Windows Update..."
-    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\الإعدادات" -Name "BranchReadinessLevel" -ErrorAction SilentlyContinue
-    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\الإعدادات" -Name "DeferFeatureالتحديثاتPeriodInDays" -ErrorAction SilentlyContinue
-    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\الإعدادات" -Name "DeferQualityالتحديثاتPeriodInDays" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Name "BranchReadinessLevel" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Name "DeferFeatureUpdatesPeriodInDays" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Name "DeferQualityUpdatesPeriodInDays" -ErrorAction SilentlyContinue
     Remove-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies" -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -Path "HKCU:\Software\Microsoft\WindowsSelfHost" -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -Path "HKCU:\Software\Policies" -Recurse -Force -ErrorAction SilentlyContinue
@@ -5955,16 +5955,16 @@ function Invoke-WPFFixesUpdate {
     Start-Process -NoNewWindow -FilePath "cmd.exe" -ArgumentList "/c RD /S /Q $env:WinDir\System32\GroupPolicyUsers" -Wait
     Start-Process -NoNewWindow -FilePath "cmd.exe" -ArgumentList "/c RD /S /Q $env:WinDir\System32\GroupPolicy" -Wait
     Start-Process -NoNewWindow -FilePath "gpupdate" -ArgumentList "/force" -Wait
-    Write-Progress -Id 7 -ParentId 0 -Activity "جارٍ الإزالة: Group Policy Windows Update settings" -Status "Completed" -PercentComplete 100
+    Write-Progress -Id 7 -ParentId 0 -Activity "Removing Group Policy Windows Update settings" -Status "Completed" -PercentComplete 100
 
 
-    # إعادة ضبط WinSock
-    Write-Progress -Id 0 -Activity "Repairing Windows Update" -Status "إعادة ضبطting WinSock..." -PercentComplete 65
-    Write-Progress -Id 7 -ParentId 0 -Activity "إعادة ضبطting WinSock" -Status "إعادة ضبطting WinSock..." -PercentComplete 0
+    # Reset WinSock
+    Write-Progress -Id 0 -Activity "Repairing Windows Update" -Status "Resetting WinSock..." -PercentComplete 65
+    Write-Progress -Id 7 -ParentId 0 -Activity "Resetting WinSock" -Status "Resetting WinSock..." -PercentComplete 0
     Start-Process -NoNewWindow -FilePath "netsh" -ArgumentList "winsock", "reset"
     Start-Process -NoNewWindow -FilePath "netsh" -ArgumentList "winhttp", "reset", "proxy"
     Start-Process -NoNewWindow -FilePath "netsh" -ArgumentList "int", "ip", "reset"
-    Write-Progress -Id 7 -ParentId 0 -Activity "إعادة ضبطting WinSock" -Status "Completed" -PercentComplete 100
+    Write-Progress -Id 7 -ParentId 0 -Activity "Resetting WinSock" -Status "Completed" -PercentComplete 100
 
 
     # Get and delete all BITS jobs
@@ -5996,7 +5996,7 @@ function Invoke-WPFFixesUpdate {
         (New-Object -ComObject Microsoft.Update.AutoUpdate).DetectNow()
     } catch {
         Set-WinUtilTaskbaritem -state "Error" -overlay "warning"
-        Write-Warning "فشل إنشاء كائن COM لـ Windows Update: $_"
+        Write-Warning "Failed to create Windows Update COM object: $_"
     }
     Start-Process -NoNewWindow -FilePath "wuauclt" -ArgumentList "/resetauthorization", "/detectnow"
     Write-Progress -Id 10 -ParentId 0 -Activity "Forcing discovery" -Status "Completed" -PercentComplete 100
@@ -6005,7 +6005,7 @@ function Invoke-WPFFixesUpdate {
     Set-WinUtilTaskbaritem -state "None" -overlay "checkmark"
 
     $ButtonType = [System.Windows.MessageBoxButton]::OK
-    $MessageboxTitle = "إعادة ضبط Windows Update "
+    $MessageboxTitle = "Reset Windows Update "
     $Messageboxbody = ("Stock settings loaded.`n Please reboot your computer")
     $MessageIcon = [System.Windows.MessageBoxImage]::Information
 
@@ -6018,11 +6018,11 @@ function Invoke-WPFFixesUpdate {
     Write-Progress -Id 0 -Activity "Repairing Windows Update" -Completed
     Write-Progress -Id 1 -Activity "Scanning for corruption" -Completed
     Write-Progress -Id 2 -Activity "Stopping Services" -Completed
-    Write-Progress -Id 3 -Activity "Renaming/جارٍ الإزالة: Files" -Completed
-    Write-Progress -Id 4 -Activity "إعادة ضبطting the WU Service Security Descriptors" -Completed
+    Write-Progress -Id 3 -Activity "Renaming/Removing Files" -Completed
+    Write-Progress -Id 4 -Activity "Resetting the WU Service Security Descriptors" -Completed
     Write-Progress -Id 5 -Activity "Reregistering DLLs" -Completed
-    Write-Progress -Id 6 -Activity "جارٍ الإزالة: Group Policy Windows Update settings" -Completed
-    Write-Progress -Id 7 -Activity "إعادة ضبطting WinSock" -Completed
+    Write-Progress -Id 6 -Activity "Removing Group Policy Windows Update settings" -Completed
+    Write-Progress -Id 7 -Activity "Resetting WinSock" -Completed
     Write-Progress -Id 8 -Activity "Deleting BITS jobs" -Completed
     Write-Progress -Id 9 -Activity "Starting Windows Update Services" -Completed
     Write-Progress -Id 10 -Activity "Forcing discovery" -Completed
@@ -6032,18 +6032,18 @@ function Invoke-WPFFixesWinget {
 
     <#
 
-    .ملخص
+    .SYNOPSIS
         Fixes WinGet by running `choco install winget`
-    .وصف
+    .DESCRIPTION
         BravoNorris for the fantastic idea of a button to reinstall WinGet
     #>
-    # تثبيت Choco if not already present
+    # Install Choco if not already present
     try {
         Set-WinUtilTaskbaritem -state "Indeterminate" -overlay "logo"
         Write-Host "==> بدء إصلاح WinGet"
-        تثبيت-WinUtilWinget
+        Install-WinUtilWinget
     } catch {
-        Write-Error "فشل تثبيت WinGet: $_"
+        Write-Error "Failed to install WinGet: $_"
         Set-WinUtilTaskbaritem -state "Error" -overlay "warning"
     } finally {
         Write-Host "==> اكتمل إصلاح WinGet"
@@ -6052,18 +6052,18 @@ function Invoke-WPFFixesWinget {
 
 }
 
-function Invoke-WPFGetتثبيتed {
+function Invoke-WPFGetInstalled {
     <#
-    .ملخص
+    .SYNOPSIS
         Invokes the function that gets the checkboxes to check in a new runspace
 
-    .معامل checkbox
+    .PARAMETER checkbox
         Indicates whether to check for installed 'winget' programs or applied 'tweaks'
 
     #>
     param($checkbox)
     if ($sync.ProcessRunning) {
-        $msg = "[Invoke-WPFGetتثبيتed] تثبيت process is currently running."
+        $msg = "[Invoke-WPFGetInstalled] Install process is currently running."
         [System.Windows.MessageBox]::Show($msg, "Winutil", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning)
         return
     }
@@ -6083,8 +6083,8 @@ function Invoke-WPFGetتثبيتed {
         )
         try {
             if ($completedOperation.Error) {
-                Write-WinUtilLog -Level "ERROR" -Component "تثبيت" -Message "Get installed state failed: $($completedOperation.Error)"
-                Write-Warning "تعذّر الحصول على حالة التثبيت: $($completedOperation.Error)"
+                Write-WinUtilLog -Level "ERROR" -Component "Install" -Message "Get installed state failed: $($completedOperation.Error)"
+                Write-Warning "Unable to get installed state: $($completedOperation.Error)"
                 return
             }
 
@@ -6094,7 +6094,7 @@ function Invoke-WPFGetتثبيتed {
                         $sync.selectedApps.Add($checkboxName)
                     }
                 }
-                إعادة ضبط-WPFCheckBoxes -checkboxfilterpattern "WPFInstall*"
+                Reset-WPFCheckBoxes -checkboxfilterpattern "WPFInstall*"
             } else {
                 foreach ($checkboxName in $completedOperation.Checkboxes) {
                     $sync.$checkboxName.ischecked = $True
@@ -6145,89 +6145,89 @@ function Invoke-WPFGetتثبيتed {
 function Invoke-WPFImpex {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Handles importing and exporting of the checkboxes checked for the tweaks section
 
-    .معامل type
+    .PARAMETER type
         Indicates whether to 'import' or 'export'
 
-    .معامل checkbox
+    .PARAMETER checkbox
         The checkbox to export to a file or apply the imported file to
 
-    .مثال
+    .EXAMPLE
         Invoke-WPFImpex -type "export"
 
     #>
     param(
         $type,
-        $الإعداد = $null
+        $Config = $null
     )
 
-    function الإعدادDialog {
-        if (!$الإعداد) {
+    function ConfigDialog {
+        if (!$Config) {
             switch ($type) {
-                "export" { $Fileاستعراضr = New-Object System.Windows.Forms.SaveFileDialog }
-                "import" { $Fileاستعراضr = New-Object System.Windows.Forms.OpenFileDialog }
+                "export" { $FileBrowser = New-Object System.Windows.Forms.SaveFileDialog }
+                "import" { $FileBrowser = New-Object System.Windows.Forms.OpenFileDialog }
             }
-            $Fileاستعراضr.InitialDirectory = [Environment]::GetFolderPath('Desktop')
-            $Fileاستعراضr.Filter = "JSON Files (*.json)|*.json"
-            $Fileاستعراضr.ShowDialog() | Out-Null
+            $FileBrowser.InitialDirectory = [Environment]::GetFolderPath('Desktop')
+            $FileBrowser.Filter = "JSON Files (*.json)|*.json"
+            $FileBrowser.ShowDialog() | Out-Null
 
-            if ($Fileاستعراضr.FileName -eq "") {
+            if ($FileBrowser.FileName -eq "") {
                 return $null
             } else {
-                return $Fileاستعراضr.FileName
+                return $FileBrowser.FileName
             }
         } else {
-            return $الإعداد
+            return $Config
         }
     }
 
     switch ($type) {
         "export" {
             try {
-                $الإعداد = الإعدادDialog
-                if ($الإعداد) {
-                    $allConfs = ($sync.selectedApps + $sync.selectedالتعديلات + $sync.selectedToggles + $sync.selectedFeatures + $sync.selectedAppx) | ForEach-Object { [string]$_ }
+                $Config = ConfigDialog
+                if ($Config) {
+                    $allConfs = ($sync.selectedApps + $sync.selectedTweaks + $sync.selectedToggles + $sync.selectedFeatures + $sync.selectedAppx) | ForEach-Object { [string]$_ }
                     if (-not $allConfs) {
                         [System.Windows.MessageBox]::Show(
-                            "No settings are selected to export. Please select at least one app, tweak, toggle, feature, or إزالة تطبيقات النظام package before exporting.",
-                            "Nothing to تصدير", "OK", "Warning")
+                            "No settings are selected to export. Please select at least one app, tweak, toggle, feature, or AppX package before exporting.",
+                            "Nothing to Export", "OK", "Warning")
                         return
                     }
                     $jsonFile = $allConfs | ConvertTo-Json
-                    $jsonFile | Out-File $الإعداد -Force
-                    "iex ""& { `$(irm https://christitus.com/win) } -الإعداد '$الإعداد'""" | Set-Clipboard
+                    $jsonFile | Out-File $Config -Force
+                    "iex ""& { `$(irm https://christitus.com/win) } -Config '$Config'""" | Set-Clipboard
                 }
             } catch {
-                Write-Error "حدث خطأ أثناء التصدير: $_"
+                Write-Error "An error occurred while exporting: $_"
             }
         }
         "import" {
             try {
-                $الإعداد = الإعدادDialog
-                if ($الإعداد) {
+                $Config = ConfigDialog
+                if ($Config) {
                     try {
-                        if ($الإعداد -match '^https?://') {
-                            $jsonFile = (Invoke-WebRequest "$الإعداد").Content | ConvertFrom-Json
+                        if ($Config -match '^https?://') {
+                            $jsonFile = (Invoke-WebRequest "$Config").Content | ConvertFrom-Json
                         } else {
-                            $jsonFile = Get-Content $الإعداد | ConvertFrom-Json
+                            $jsonFile = Get-Content $Config | ConvertFrom-Json
                         }
                     } catch {
-                        Write-Error "فشل تحميل ملف JSON من المسار أو الرابط المحدد: $_"
+                        Write-Error "Failed to load the JSON file from the specified path or URL: $_"
                         return
                     }
-                    $isLegacyالإعداد = $jsonFile -is [System.Management.Automation.PSCustomObject] -and
-                        $null -ne $jsonFile.PSObject.Properties["تثبيت"] -and
+                    $isLegacyConfig = $jsonFile -is [System.Management.Automation.PSCustomObject] -and
+                        $null -ne $jsonFile.PSObject.Properties["Install"] -and
                         $null -ne $jsonFile.PSObject.Properties["WPFInstall"]
-                    if ($isLegacyالإعداد) {
+                    if ($isLegacyConfig) {
                         Write-WinUtilLog -Component "Impex" -Message "Detected legacy WinUtil config structure; flattening import object."
                         # Legacy exports stored checkbox keys in WPFInstall and duplicated package
-                        # source metadata in تثبيت. Current package IDs come from the app catalog,
+                        # source metadata in Install. Current package IDs come from the app catalog,
                         # so only the selection-key properties are restored.
                         $flattenedJson = @(
                             foreach ($property in $jsonFile.PSObject.Properties) {
-                                if ($property.Name -notmatch '^WPF(?:تثبيت|التعديلات|Toggle|Feature|Appx)') {
+                                if ($property.Name -notmatch '^WPF(?:Install|Tweaks|Toggle|Feature|Appx)') {
                                     continue
                                 }
 
@@ -6246,13 +6246,13 @@ function Invoke-WPFImpex {
                     if (-not $flattenedJson) {
                         [System.Windows.MessageBox]::Show(
                             "The selected file contains no settings to import. No changes have been made.",
-                            "Empty الإعدادuration", "OK", "Warning")
+                            "Empty Configuration", "OK", "Warning")
                         return
                     }
 
                     # Modern configs stay strict. Legacy configs can reference entries that no
                     # longer exist, so restore supported selections and report the retired keys.
-                    if ($isLegacyالإعداد) {
+                    if ($isLegacyConfig) {
                         $skippedSelections = @(Update-WinUtilSelections -flatJson $flattenedJson -Replace -SkipUnknown)
 
                         if ($skippedSelections.Count -gt 0) {
@@ -6262,7 +6262,7 @@ function Invoke-WPFImpex {
 
                         if ($skippedSelections.Count -eq @($flattenedJson).Count) {
                             if ($sync.Form) {
-                                Show-WinUtilMessage -Message "This legacy configuration contains no settings supported by this version of WinUtil. No changes have been made." -Title "Unsupported Legacy الإعدادuration" -Icon "Warning" | Out-Null
+                                Show-WinUtilMessage -Message "This legacy configuration contains no settings supported by this version of WinUtil. No changes have been made." -Title "Unsupported Legacy Configuration" -Icon "Warning" | Out-Null
                             }
                             return
                         }
@@ -6273,7 +6273,7 @@ function Invoke-WPFImpex {
                                 $skippedDisplay += "`n...and $($skippedSelections.Count - 10) more. See the WinUtil log for details."
                             }
                             if ($sync.Form) {
-                                Show-WinUtilMessage -Message "Supported settings were imported. The following retired settings were skipped:`n`n$skippedDisplay" -Title "Legacy الإعدادuration Partially استيرادed" -Icon "Warning" | Out-Null
+                                Show-WinUtilMessage -Message "Supported settings were imported. The following retired settings were skipped:`n`n$skippedDisplay" -Title "Legacy Configuration Partially Imported" -Icon "Warning" | Out-Null
                             }
                         }
                     } else {
@@ -6283,11 +6283,11 @@ function Invoke-WPFImpex {
                     }
 
                     if ($sync.Form) {
-                        إعادة ضبط-WPFCheckBoxes -doToggles $true
+                        Reset-WPFCheckBoxes -doToggles $true
                     }
                 }
             } catch {
-                Write-Error "حدث خطأ أثناء الاستيراد: $_"
+                Write-Error "An error occurred while importing: $_"
             }
         }
     }
@@ -6295,48 +6295,48 @@ function Invoke-WPFImpex {
 
 function Invoke-WPFInstall {
     <#
-    .ملخص
-        تثبيتs the selected programs using winget, if one or more of the selected programs are already installed on the system, winget will try and perform an upgrade if there's a newer version to install.
+    .SYNOPSIS
+        Installs the selected programs using winget, if one or more of the selected programs are already installed on the system, winget will try and perform an upgrade if there's a newer version to install.
     #>
     param(
         [Parameter(Mandatory = $false)]
-        [PSObject[]]$PackagesToتثبيت = $($sync.selectedApps | Foreach-Object { $sync.configs.applicationsHashtable.$_ })
+        [PSObject[]]$PackagesToInstall = $($sync.selectedApps | Foreach-Object { $sync.configs.applicationsHashtable.$_ })
     )
 
 
     if($sync.ProcessRunning) {
-        $msg = "[Invoke-WPFInstall] An تثبيت process is currently running."
+        $msg = "[Invoke-WPFInstall] An Install process is currently running."
         Show-WinUtilMessage -Message $msg -Title "WinUtil" -Button "OK" -Icon "Warning"
         return
     }
 
-    if ($PackagesToتثبيت.Count -eq 0) {
+    if ($PackagesToInstall.Count -eq 0) {
         $WarningMsg = "Please select the program(s) to install or upgrade."
         Show-WinUtilMessage -Message $WarningMsg -Title "WinUtil" -Button "OK" -Icon "Warning"
         return
     }
 
     $ManagerPreference = $sync.preferences.packagemanager
-    Write-WinUtilLog -Component "تثبيت" -Message "تثبيت requested for $(@($PackagesToتثبيت).Count) selected package(s) using preference: $ManagerPreference"
-    $packageSummary = Get-WinUtilPackageLogSummary -Packages $PackagesToتثبيت -Preference $ManagerPreference
-    Write-WinUtilLog -Component "تثبيت" -Message "تثبيت selected package(s): $($packageSummary -join '; ')"
+    Write-WinUtilLog -Component "Install" -Message "Install requested for $(@($PackagesToInstall).Count) selected package(s) using preference: $ManagerPreference"
+    $packageSummary = Get-WinUtilPackageLogSummary -Packages $PackagesToInstall -Preference $ManagerPreference
+    Write-WinUtilLog -Component "Install" -Message "Install selected package(s): $($packageSummary -join '; ')"
 
-    Invoke-WPFRunspace -ParameterList @(("PackagesToتثبيت", $PackagesToتثبيت),("ManagerPreference", $ManagerPreference)) -ScriptBlock {
-        param($PackagesToتثبيت, $ManagerPreference)
+    Invoke-WPFRunspace -ParameterList @(("PackagesToInstall", $PackagesToInstall),("ManagerPreference", $ManagerPreference)) -ScriptBlock {
+        param($PackagesToInstall, $ManagerPreference)
 
-        $packagesSorted = Get-WinUtilSelectedPackages -PackageList $PackagesToتثبيت -Preference $ManagerPreference
+        $packagesSorted = Get-WinUtilSelectedPackages -PackageList $PackagesToInstall -Preference $ManagerPreference
 
         $packagesWinget = $packagesSorted['Winget']
         $packagesChoco = $packagesSorted['Choco']
         $totalPackages = @($packagesWinget).Count + @($packagesChoco).Count
         $completedPackages = 0
         $hasUI = $null -ne $sync.Form -and $null -ne $sync.Form.Dispatcher
-        Write-WinUtilLog -Component "تثبيت" -Message "تثبيت package manager split: winget=$(@($packagesWinget).Count), choco=$(@($packagesChoco).Count)"
+        Write-WinUtilLog -Component "Install" -Message "Install package manager split: winget=$(@($packagesWinget).Count), choco=$(@($packagesChoco).Count)"
 
         try {
             $sync.ProcessRunning = $true
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Preparing app install (0/$totalPackages)" -Percent 0
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Preparing app install (0/$totalPackages)" -Percent 0
                 Invoke-WPFUIThread -ScriptBlock {
                     if ($null -ne $sync.ItemsControl) {
                         $sync.ItemsControl.IsEnabled = $false
@@ -6345,19 +6345,19 @@ function Invoke-WPFInstall {
             }
 
             if($packagesWinget.Count -gt 0 -and $packagesWinget -ne "0") {
-                تثبيت-WinUtilWinget
+                Install-WinUtilWinget
                 foreach ($program in $packagesWinget) {
                     $position = $completedPackages + 1
                     $startPercent = [int](($completedPackages / $totalPackages) * 100)
                     if ($hasUI) {
-                        Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "جارٍ التثبيت: $program ($position/$totalPackages)" -Percent $startPercent
+                        Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Installing $program ($position/$totalPackages)" -Percent $startPercent
                     }
 
-                    تثبيت-WinUtilProgramWinget -Action تثبيت -Programs @($program)
+                    Install-WinUtilProgramWinget -Action Install -Programs @($program)
                     $completedPackages++
                     $completedPercent = [int](($completedPackages / $totalPackages) * 100)
                     if ($hasUI) {
-                        Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "تثبيتed $program ($completedPackages/$totalPackages)" -Percent $completedPercent
+                        Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Installed $program ($completedPackages/$totalPackages)" -Percent $completedPercent
                         Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -value ($completedPercent / 100) }
                     }
                 }
@@ -6366,33 +6366,33 @@ function Invoke-WPFInstall {
                 $position = $completedPackages + 1
                 $startPercent = [int](($completedPackages / $totalPackages) * 100)
                 if ($hasUI) {
-                    Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "جارٍ التثبيت: Chocolatey packages ($position/$totalPackages)" -Percent $startPercent
+                    Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Installing Chocolatey packages ($position/$totalPackages)" -Percent $startPercent
                 }
 
-                تثبيت-WinUtilChoco
-                تثبيت-WinUtilProgramChoco -Action تثبيت -Programs $packagesChoco
+                Install-WinUtilChoco
+                Install-WinUtilProgramChoco -Action Install -Programs $packagesChoco
                 $completedPackages += @($packagesChoco).Count
                 $completedPercent = [int](($completedPackages / $totalPackages) * 100)
                 if ($hasUI) {
-                    Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "تثبيتed Chocolatey packages ($completedPackages/$totalPackages)" -Percent $completedPercent
+                    Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Installed Chocolatey packages ($completedPackages/$totalPackages)" -Percent $completedPercent
                     Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -value ($completedPercent / 100) }
                 }
             }
             Write-Host "==========================================="
             Write-Host "--      اكتملت عمليات التثبيت          ---"
             Write-Host "==========================================="
-            Write-WinUtilLog -Component "تثبيت" -Message "تثبيت workflow completed."
+            Write-WinUtilLog -Component "Install" -Message "Install workflow completed."
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "App install finished" -Percent 100
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "App install finished" -Percent 100
                 Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "None" -overlay "checkmark" }
             }
         } catch {
             Write-Host "==========================================="
             Write-Host "Error: $_"
             Write-Host "==========================================="
-            Write-WinUtilLog -Level "ERROR" -Component "تثبيت" -Message "تثبيت workflow failed: $($_.Exception.Message)"
+            Write-WinUtilLog -Level "ERROR" -Component "Install" -Message "Install workflow failed: $($_.Exception.Message)"
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "App install failed" -Percent 100
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "App install failed" -Percent 100
                 Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "Error" -overlay "warning" }
             }
         } finally {
@@ -6410,7 +6410,7 @@ function Invoke-WPFInstall {
 
 function Invoke-WPFInstallUpgrade {
     if ($sync.ChocoRadioButton.IsChecked) {
-        تثبيت-WinUtilChoco # Ensure Chocolatey is installed before upgrading
+        Install-WinUtilChoco # Ensure Chocolatey is installed before upgrading
 
         Write-Host "==========================================="
         Write-Host "--           بدأت التحديثات            ---"
@@ -6419,7 +6419,7 @@ function Invoke-WPFInstallUpgrade {
 
         Start-Process -FilePath powershell.exe -ArgumentList 'choco upgrade all -y'
     } else {
-        تثبيت-WinUtilWinget # Ensure WinGet is installed before upgrading
+        Install-WinUtilWinget # Ensure WinGet is installed before upgrading
 
         Write-Host "==========================================="
         Write-Host "--           بدأت التحديثات            ---"
@@ -6447,31 +6447,31 @@ function Invoke-WPFOOSU {
         try {
             Write-WinUtilLog -Component "OOSU" -Message "Downloading O&O ShutUp10++."
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Downloading O&O ShutUp10++ (0%)" -Percent 0
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Downloading O&O ShutUp10++ (0%)" -Percent 0
             }
 
             Save-WinUtilFile -Uri "https://dl5.oo-software.com/files/ooshutup10/OOSU10.exe" -DestinationPath $downloadPath -ProgressCallback {
                 param($percent)
 
                 if ($hasUI) {
-                    Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Downloading O&O ShutUp10++ ($percent%)" -Percent $percent
+                    Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Downloading O&O ShutUp10++ ($percent%)" -Percent $percent
                 }
             }
 
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Launching O&O ShutUp10++" -Percent 100
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Launching O&O ShutUp10++" -Percent 100
             }
             Start-Process -FilePath $downloadPath
 
             Write-WinUtilLog -Component "OOSU" -Message "O&O ShutUp10++ launched."
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "O&O ShutUp10++ launched" -Percent 100
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "O&O ShutUp10++ launched" -Percent 100
             }
         }
         catch {
             Write-WinUtilLog -Level "ERROR" -Component "OOSU" -Message "O&O ShutUp10++ download failed: $($_.Exception.Message)"
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "O&O ShutUp10++ download failed" -Percent 100
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "O&O ShutUp10++ download failed" -Percent 100
             }
             Write-Error "تعذّر تنزيل O&O ShutUp10. يُرجى التأكد من اتصالك بالإنترنت."
         }
@@ -6504,11 +6504,11 @@ function Invoke-WPFPopup {
     )
 
     if (-not $PopupActionTable.Count -and (-not $Action -or -not $Popups.Count)) {
-        throw "يُرجى توفير 'PopupActionTable' أو كلاً من 'Action' و'Popups'."
+        throw "Provide either 'PopupActionTable' or both 'Action' and 'Popups'."
     }
 
     if ($PopupActionTable.Count -and ($Action -or $Popups.Count)) {
-        throw "استخدم 'PopupActionTable' وحده، أو 'Action' مع 'Popups'."
+        throw "Use 'PopupActionTable' on its own, or 'Action' with 'Popups'."
     }
 
     # Collect popups and actions
@@ -6520,7 +6520,7 @@ function Invoke-WPFPopup {
 
     $PopupsNotFound = @()
 
-    # تطبيق actions
+    # Apply actions
     foreach ($popupEntry in $PopupsToProcess) {
         $popupName = $popupEntry.Name
 
@@ -6544,16 +6544,16 @@ function Invoke-WPFPopup {
 function Invoke-WPFPresets {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Sets the checkboxes in winutil to the given preset
 
-    .معامل preset
+    .PARAMETER preset
         The preset to set the checkboxes to
 
-    .معامل imported
+    .PARAMETER imported
         If the preset is imported from a file, defaults to false
 
-    .معامل checkboxfilterpattern
+    .PARAMETER checkboxfilterpattern
         The Pattern to use when filtering through CheckBoxes, defaults to "**"
 
     #>
@@ -6578,7 +6578,7 @@ function Invoke-WPFPresets {
     # clear out the filtered pattern so applying a preset replaces the current
     # state rather than merging with it
     switch ($checkboxfilterpattern) {
-        "WPFTweak*" { $sync.selectedالتعديلات = [System.Collections.Generic.List[string]]::new() }
+        "WPFTweak*" { $sync.selectedTweaks = [System.Collections.Generic.List[string]]::new() }
         "WPFInstall*" { $sync.selectedApps = [System.Collections.Generic.List[string]]::new() }
         "WPFAppx*" { $sync.selectedAppx = [System.Collections.Generic.List[string]]::new() }
         "WPFFeature*" { $sync.selectedFeatures = [System.Collections.Generic.List[string]]::new() }
@@ -6590,32 +6590,32 @@ function Invoke-WPFPresets {
         Update-WinUtilSelections -flatJson $CheckBoxesToCheck
     }
 
-    إعادة ضبط-WPFCheckBoxes -doToggles $false -checkboxfilterpattern $checkboxfilterpattern
+    Reset-WPFCheckBoxes -doToggles $false -checkboxfilterpattern $checkboxfilterpattern
 }
 
 function Invoke-WPFRunspace {
 
     <#
 
-    .ملخص
+    .SYNOPSIS
         Creates and invokes a runspace using the given scriptblock and argumentlist
 
-    .معامل ScriptBlock
+    .PARAMETER ScriptBlock
         The scriptblock to invoke in the runspace
 
-    .معامل ArgumentList
+    .PARAMETER ArgumentList
         A list of arguments to pass to the runspace
 
-    .معامل ParameterList
+    .PARAMETER ParameterList
         A list of named parameters that should be provided.
-    .مثال
+    .EXAMPLE
         Invoke-WPFRunspace `
-            -ScriptBlock $sync.ScriptsتثبيتPrograms `
-            -ArgumentList "تثبيتadvancedip,تثبيتbitwarden" `
+            -ScriptBlock $sync.ScriptsInstallPrograms `
+            -ArgumentList "Installadvancedip,Installbitwarden" `
 
         Invoke-WPFRunspace`
-            -ScriptBlock $sync.ScriptsتثبيتPrograms `
-            -ParameterList @(("PackagesToتثبيت", @("تثبيتadvancedip,تثبيتbitwarden")),("ChocoPreference", $true))
+            -ScriptBlock $sync.ScriptsInstallPrograms `
+            -ParameterList @(("PackagesToInstall", @("Installadvancedip,Installbitwarden")),("ChocoPreference", $true))
     #>
 
     [CmdletBinding()]
@@ -6695,7 +6695,7 @@ public static class WinUtilRunspaceCleanup
 function Invoke-WPFSelectedCheckboxesUpdate ($type, $checkboxName) {
     $listName = switch -Regex ($checkboxName) {
         '^WPFInstall' { 'selectedApps' }
-        '^WPFالتعديلات'  { 'selectedالتعديلات' }
+        '^WPFTweaks'  { 'selectedTweaks' }
         '^WPFToggle'  { 'selectedToggles' }
         '^WPFFeature' { 'selectedFeatures' }
         '^WPFAppx'    { 'selectedAppx' }
@@ -6723,7 +6723,7 @@ function Invoke-WPFSelectedCheckboxesUpdate ($type, $checkboxName) {
 function Invoke-WPFSSHServer {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Invokes the OpenSSH Server install in a runspace
 
   #>
@@ -6740,11 +6740,11 @@ function Invoke-WPFSSHServer {
 
 function Invoke-WPFSystemRepair {
     <#
-    .ملخص
+    .SYNOPSIS
         Checks for system corruption using SFC, and DISM
         Checks for disk failure using Chkdsk
 
-    .وصف
+    .DESCRIPTION
         1. Chkdsk - Checks for disk errors, which can cause system file corruption and notifies of early disk failure
         2. SFC - scans protected system files for corruption and fixes them
         3. DISM - Repair a corrupted Windows operating system image
@@ -6762,10 +6762,10 @@ function Invoke-WPFTab {
 
     <#
 
-    .ملخص
+    .SYNOPSIS
         Sets the selected tab to the tab that was clicked
 
-    .معامل ClickedTab
+    .PARAMETER ClickedTab
         The name of the tab that was clicked
 
     #>
@@ -6791,19 +6791,19 @@ function Invoke-WPFTab {
     Initialize-WinUtilTabContent -TabName $sync.currentTab
 
     # Always reset the filter for the current tab
-    if ($sync.currentTab -eq "تثبيت") {
-        # إعادة ضبط the search text, but keep the categories the chips are still showing as selected
+    if ($sync.currentTab -eq "Install") {
+        # Reset the search text, but keep the categories the chips are still showing as selected
         $selectedCategories = if ($sync.SelectedAppCategories) { $sync.SelectedAppCategories.ToArray() } else { @() }
         Find-AppsByNameOrDescription -SearchString "" -Categories $selectedCategories
-    } elseif ($sync.currentTab -eq "التعديلات") {
-        # إعادة ضبط التعديلات tab filter
-        Find-التعديلاتByNameOrDescription -SearchString ""
-    } elseif ($sync.currentTab -eq "إزالة تطبيقات النظام") {
-        # إعادة ضبط إزالة تطبيقات النظام tab filter
-        Find-التعديلاتByNameOrDescription -SearchString ""
+    } elseif ($sync.currentTab -eq "Tweaks") {
+        # Reset Tweaks tab filter
+        Find-TweaksByNameOrDescription -SearchString ""
+    } elseif ($sync.currentTab -eq "AppX") {
+        # Reset AppX tab filter
+        Find-TweaksByNameOrDescription -SearchString ""
     }
 
-    # Show search bar in تثبيت, التعديلات, and إزالة تطبيقات النظام tabs
+    # Show search bar in Install, Tweaks, and AppX tabs
     if ($tabNumber -eq 0 -or $tabNumber -eq 1 -or $tabNumber -eq 5) {
         $sync.SearchBar.Visibility = "Visible"
         $searchIcon = ($sync.Form.FindName("SearchBar").Parent.Children | Where-Object { $_ -is [System.Windows.Controls.TextBlock] -and $_.Text -eq [char]0xE721 })[0]
@@ -6821,16 +6821,16 @@ function Invoke-WPFTab {
     }
 }
 
-function Invoke-WPFToggleالكلCategories {
+function Invoke-WPFToggleAllCategories {
     <#
-        .ملخص
-            Expands or collapses all categories in the تثبيت tab
+        .SYNOPSIS
+            Expands or collapses all categories in the Install tab
 
-        .معامل Action
+        .PARAMETER Action
             The action to perform: "Expand" or "Collapse"
 
-        .وصف
-            This function iterates through all category containers in the تثبيت tab
+        .DESCRIPTION
+            This function iterates through all category containers in the Install tab
             and expands or collapses their WrapPanels while updating the toggle button labels
     #>
 
@@ -6877,28 +6877,28 @@ function Invoke-WPFToggleالكلCategories {
 function Invoke-WPFtweaksbutton {
   <#
 
-    .ملخص
+    .SYNOPSIS
         Invokes the functions associated with each group of checkboxes
 
   #>
 
   if($sync.ProcessRunning) {
-    $msg = "[Invoke-WPFtweaksbutton] تثبيت process is currently running."
+    $msg = "[Invoke-WPFtweaksbutton] Install process is currently running."
     [System.Windows.MessageBox]::Show($msg, "Winutil", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning)
     return
   }
 
-  $التعديلات = $sync.selectedالتعديلات
+  $Tweaks = $sync.selectedTweaks
   $dnsProvider = $sync["WPFchangedns"].text
   if (-not ($dnsProvider)) {
     $dnsProvider = "Default"
   }
-  $restorePointTweak = "WPFالتعديلاتRestorePoint"
-  $restorePointSelected = $التعديلات -contains $restorePointTweak
-  $tweaksToRun = @($التعديلات | Where-Object { $_ -ne $restorePointTweak })
-  $totalSteps = [Math]::Max($التعديلات.Count, 1)
+  $restorePointTweak = "WPFTweaksRestorePoint"
+  $restorePointSelected = $Tweaks -contains $restorePointTweak
+  $tweaksToRun = @($Tweaks | Where-Object { $_ -ne $restorePointTweak })
+  $totalSteps = [Math]::Max($Tweaks.Count, 1)
   $completedSteps = 0
-  Write-WinUtilLog -Component "التعديلات" -Message "التعديلات requested: $(@($التعديلات).Count) selected tweak(s), مزوّد DNS: $dnsProvider"
+  Write-WinUtilLog -Component "Tweaks" -Message "Tweaks requested: $(@($Tweaks).Count) selected tweak(s), DNS provider: $dnsProvider"
 
   if ($tweaks.count -eq 0 -and $dnsProvider -eq "Default") {
     $msg = "Please check the tweaks you wish to perform."
@@ -6909,25 +6909,25 @@ function Invoke-WPFtweaksbutton {
   if ($restorePointSelected) {
     $sync.ProcessRunning = $true
 
-    if ($التعديلات.Count -eq 1) {
+    if ($Tweaks.Count -eq 1) {
         Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "Indeterminate" -value 0.01 -overlay "logo" }
     } else {
         Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "Normal" -value 0.01 -overlay "logo" }
     }
 
-    Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Creating restore point" -Percent 0
-    Write-WinUtilLog -Component "التعديلات" -Message "Creating restore point before applying selected tweaks."
-    Invoke-WinUtilالتعديلات $restorePointTweak
+    Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Creating restore point" -Percent 0
+    Write-WinUtilLog -Component "Tweaks" -Message "Creating restore point before applying selected tweaks."
+    Invoke-WinUtilTweaks $restorePointTweak
     $completedSteps = 1
 
     if ($tweaksToRun.Count -eq 0 -and $dnsProvider -eq "Default") {
-      Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "التعديلات finished" -Percent 100
+      Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Tweaks finished" -Percent 100
       $sync.ProcessRunning = $false
       Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "None" -overlay "checkmark" }
       Write-Host "================================="
-      Write-Host "--     التعديلات are Finished    ---"
+      Write-Host "--     Tweaks are Finished    ---"
       Write-Host "================================="
-      Write-WinUtilLog -Component "التعديلات" -Message "التعديلات workflow completed after restore point."
+      Write-WinUtilLog -Component "Tweaks" -Message "Tweaks workflow completed after restore point."
       return
     }
   }
@@ -6939,7 +6939,7 @@ function Invoke-WPFtweaksbutton {
     $sync.ProcessRunning = $true
 
     if ($completedSteps -eq 0) {
-      if ($التعديلات.count -eq 1) {
+      if ($Tweaks.count -eq 1) {
         Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "Indeterminate" -value 0.01 -overlay "logo" }
       } else {
         Invoke-WPFUIThread -ScriptBlock{ Set-WinUtilTaskbaritem -state "Normal" -value 0.01 -overlay "logo" }
@@ -6949,44 +6949,44 @@ function Invoke-WPFtweaksbutton {
     if ($dnsProvider -ne "Default") {
       $dnsResult = @(Set-WinUtilDNS -DNSProvider $dnsProvider)
       if ($dnsResult[-1] -ne $true) {
-        Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "DNS change failed" -Percent 100
+        Set-WinUtilTweaksProgressIndicator -Visible $true -Label "DNS change failed" -Percent 100
         $sync.ProcessRunning = $false
         Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "Error" -overlay "warning" }
-        Write-WinUtilLog -Level "ERROR" -Component "التعديلات" -Message "التعديلات workflow stopped because the DNS change failed."
+        Write-WinUtilLog -Level "ERROR" -Component "Tweaks" -Message "Tweaks workflow stopped because the DNS change failed."
         return
       }
     }
 
     for ($i = 0; $i -lt $tweaks.Count; $i++) {
-      Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "تطبيقing $($tweaks[$i]) ($($completedSteps + 1)/$totalSteps)" -Percent ($completedSteps / $totalSteps * 100)
-      Invoke-WinUtilالتعديلات $tweaks[$i]
+      Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Applying $($tweaks[$i]) ($($completedSteps + 1)/$totalSteps)" -Percent ($completedSteps / $totalSteps * 100)
+      Invoke-WinUtilTweaks $tweaks[$i]
       $completedSteps++
       $progress = $completedSteps / $totalSteps
       Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -value $progress }
     }
-    Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "التعديلات finished" -Percent 100
+    Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Tweaks finished" -Percent 100
     $sync.ProcessRunning = $false
     Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "None" -overlay "checkmark" }
     Write-Host "================================="
-    Write-Host "--     التعديلات are Finished    ---"
+    Write-Host "--     Tweaks are Finished    ---"
     Write-Host "================================="
-    Write-WinUtilLog -Component "التعديلات" -Message "التعديلات workflow completed."
+    Write-WinUtilLog -Component "Tweaks" -Message "Tweaks workflow completed."
   } | Out-Null
 }
 
 function Invoke-WPFUIElements {
     <#
-    .ملخص
+    .SYNOPSIS
         Adds UI elements to a specified Grid in the WinUtil GUI based on a JSON configuration.
-    .معامل configVariable
+    .PARAMETER configVariable
         The variable/link containing the JSON configuration.
-    .معامل targetGridName
+    .PARAMETER targetGridName
         The name of the grid to which the UI elements should be added.
-    .معامل columncount
+    .PARAMETER columncount
         The number of columns to be used in the Grid. If not provided, a default value is used based on the panel.
-    .مثال
+    .EXAMPLE
         Invoke-WPFUIElements -configVariable $sync.configs.applications -targetGridName "install" -columncount 5
-    .ملاحظات
+    .NOTES
         Future me/contributor: If possible, please wrap this into a runspace to make it load all panels at the same time.
     #>
 
@@ -7018,7 +7018,7 @@ function Invoke-WPFUIElements {
         throw "Failed to retrieve Target Grid by name, provided name: $targetGrid"
     }
 
-    # مسح existing ColumnDefinitions and Children
+    # Clear existing ColumnDefinitions and Children
     $targetGrid.ColumnDefinitions.Clear() | Out-Null
     $targetGrid.Children.Clear() | Out-Null
 
@@ -7181,8 +7181,8 @@ function Invoke-WPFUIElements {
                             [System.Object]$Sender = $args[0]
                             Invoke-WPFSelectedCheckboxesUpdate -type "Add" -checkboxName $Sender.name
                             # Skip applying tweaks while an import is restoring toggle states
-                            if (-not $sync.استيرادInProgress) {
-                                Invoke-WinUtilالتعديلات $Sender.name
+                            if (-not $sync.ImportInProgress) {
+                                Invoke-WinUtilTweaks $Sender.name
                             }
                         })
 
@@ -7190,7 +7190,7 @@ function Invoke-WPFUIElements {
                             [System.Object]$Sender = $args[0]
                             Invoke-WPFSelectedCheckboxesUpdate -type "Remove" -checkboxName $Sender.name
                             # Skip undoing tweaks while an import is restoring toggle states
-                            if (-not $sync.استيرادInProgress) {
+                            if (-not $sync.ImportInProgress) {
                                 Invoke-WinUtiltweaks $Sender.name -undo $true
                             }
                         })
@@ -7443,10 +7443,10 @@ function Invoke-WPFUIElements {
                         $textBlock.Margin = "5,5,5,5"
                         $textBlock.UseLayoutRounding = $true
 
-                        $bulletBadge = [Windows.المستنداتs.InlineUIContainer]::new((New-WinUtilFossBadge -Size 18 -Round))
+                        $bulletBadge = [Windows.Documents.InlineUIContainer]::new((New-WinUtilFossBadge -Size 18 -Round))
                         $bulletBadge.BaselineAlignment = [Windows.BaselineAlignment]::Center
 
-                        $textRun = New-Object Windows.المستنداتs.Run
+                        $textRun = New-Object Windows.Documents.Run
                         $textRun.Text = " $($entryInfo.Content)"
                         $textRun.SetResourceReference([Windows.Controls.Control]::FontSizeProperty, "FontSize")
                         $textRun.Foreground = [Windows.Media.SolidColorBrush]::new([Windows.Media.Color]::FromRgb(19, 143, 83))
@@ -7554,18 +7554,18 @@ function Invoke-WPFUltimatePerformance ([switch]$Enable) {
 function Invoke-WPFundoall {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Undoes every selected tweak
 
     #>
 
     if($sync.ProcessRunning) {
-        $msg = "[Invoke-WPFundoall] تثبيت process is currently running."
+        $msg = "[Invoke-WPFundoall] Install process is currently running."
         [System.Windows.MessageBox]::Show($msg, "Winutil", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning)
         return
     }
 
-    $tweaks = $sync.selectedالتعديلات
+    $tweaks = $sync.selectedTweaks
 
     if ($tweaks.count -eq 0) {
         $msg = "Please check the tweaks you wish to undo."
@@ -7577,7 +7577,7 @@ function Invoke-WPFundoall {
         param($tweaks)
 
         $sync.ProcessRunning = $true
-        Write-WinUtilLog -Component "التعديلات" -Message "Undo tweaks requested: $(@($tweaks).Count) selected tweak(s)."
+        Write-WinUtilLog -Component "Tweaks" -Message "Undo tweaks requested: $(@($tweaks).Count) selected tweak(s)."
         if ($tweaks.count -eq 1) {
             Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "Indeterminate" -value 0.01 -overlay "logo" }
         } else {
@@ -7586,35 +7586,35 @@ function Invoke-WPFundoall {
 
 
         for ($i = 0; $i -lt $tweaks.Count; $i++) {
-            Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Undoing $($tweaks[$i]) ($($i + 1)/$($tweaks.Count))" -Percent ($i / $tweaks.Count * 100)
+            Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Undoing $($tweaks[$i]) ($($i + 1)/$($tweaks.Count))" -Percent ($i / $tweaks.Count * 100)
             Invoke-WinUtiltweaks $tweaks[$i] -undo $true
             Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -value ($i/$tweaks.Count) }
         }
 
-        Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Undo التعديلات Finished" -Percent 100
+        Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Undo Tweaks Finished" -Percent 100
         $sync.ProcessRunning = $false
         Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "None" -overlay "checkmark" }
         Write-Host "=================================="
-        Write-Host "---  Undo التعديلات are Finished  ---"
+        Write-Host "---  Undo Tweaks are Finished  ---"
         Write-Host "=================================="
-        Write-WinUtilLog -Component "التعديلات" -Message "Undo tweaks workflow completed."
+        Write-WinUtilLog -Component "Tweaks" -Message "Undo tweaks workflow completed."
 
     }
 }
 
-function Invoke-WPFUnتثبيت {
+function Invoke-WPFUnInstall {
     param(
         [Parameter(Mandatory=$false)]
         [PSObject[]]$PackagesToUninstall = $($sync.selectedApps | Foreach-Object { $sync.configs.applicationsHashtable.$_ })
     )
     <#
 
-    .ملخص
+    .SYNOPSIS
         Uninstalls the selected programs
     #>
 
     if($sync.ProcessRunning) {
-        $msg = "[Invoke-WPFUnتثبيت] تثبيت process is currently running"
+        $msg = "[Invoke-WPFUnInstall] Install process is currently running"
         Show-WinUtilMessage -Message $msg -Title "WinUtil" -Button "OK" -Icon "Warning"
         return
     }
@@ -7654,7 +7654,7 @@ function Invoke-WPFUnتثبيت {
         try {
             $sync.ProcessRunning = $true
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Preparing app uninstall (0/$totalPackages)" -Percent 0
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Preparing app uninstall (0/$totalPackages)" -Percent 0
                 Invoke-WPFUIThread -ScriptBlock {
                     if ($null -ne $sync.ItemsControl) {
                         $sync.ItemsControl.IsEnabled = $false
@@ -7672,14 +7672,14 @@ function Invoke-WPFUnتثبيت {
                     $position = $completedPackages + 1
                     $startPercent = [int](($completedPackages / $totalPackages) * 100)
                     if ($hasUI) {
-                        Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "جارٍ إلغاء التثبيت: $program ($position/$totalPackages)" -Percent $startPercent
+                        Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Uninstalling $program ($position/$totalPackages)" -Percent $startPercent
                     }
 
-                    تثبيت-WinUtilProgramWinget -Action Uninstall -Programs @($program)
+                    Install-WinUtilProgramWinget -Action Uninstall -Programs @($program)
                     $completedPackages++
                     $completedPercent = [int](($completedPackages / $totalPackages) * 100)
                     if ($hasUI) {
-                        Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Uninstalled $program ($completedPackages/$totalPackages)" -Percent $completedPercent
+                        Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Uninstalled $program ($completedPackages/$totalPackages)" -Percent $completedPercent
                         Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -value ($completedPercent / 100) }
                     }
                 }
@@ -7688,14 +7688,14 @@ function Invoke-WPFUnتثبيت {
                 $position = $completedPackages + 1
                 $startPercent = [int](($completedPackages / $totalPackages) * 100)
                 if ($hasUI) {
-                    Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "جارٍ إلغاء التثبيت: Chocolatey packages ($position/$totalPackages)" -Percent $startPercent
+                    Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Uninstalling Chocolatey packages ($position/$totalPackages)" -Percent $startPercent
                 }
 
-                تثبيت-WinUtilProgramChoco -Action Uninstall -Programs $packagesChoco
+                Install-WinUtilProgramChoco -Action Uninstall -Programs $packagesChoco
                 $completedPackages += @($packagesChoco).Count
                 $completedPercent = [int](($completedPackages / $totalPackages) * 100)
                 if ($hasUI) {
-                    Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "Uninstalled Chocolatey packages ($completedPackages/$totalPackages)" -Percent $completedPercent
+                    Set-WinUtilTweaksProgressIndicator -Visible $true -Label "Uninstalled Chocolatey packages ($completedPackages/$totalPackages)" -Percent $completedPercent
                     Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -value ($completedPercent / 100) }
                 }
             }
@@ -7704,7 +7704,7 @@ function Invoke-WPFUnتثبيت {
             Write-Host "==========================================="
             Write-WinUtilLog -Component "Uninstall" -Message "Uninstall workflow completed."
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "App uninstall finished" -Percent 100
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "App uninstall finished" -Percent 100
                 Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "None" -overlay "checkmark" }
             }
         } catch {
@@ -7713,7 +7713,7 @@ function Invoke-WPFUnتثبيت {
             Write-Host "==========================================="
             Write-WinUtilLog -Level "ERROR" -Component "Uninstall" -Message "Uninstall workflow failed: $($_.Exception.Message)"
             if ($hasUI) {
-                Set-WinUtilالتعديلاتProgressIndicator -Visible $true -Label "App uninstall failed" -Percent 100
+                Set-WinUtilTweaksProgressIndicator -Visible $true -Label "App uninstall failed" -Percent 100
                 Invoke-WPFUIThread -ScriptBlock { Set-WinUtilTaskbaritem -state "Error" -overlay "warning" }
             }
         } finally {
@@ -7730,17 +7730,17 @@ function Invoke-WPFUnتثبيت {
     }
 }
 
-function Invoke-WPFالتحديثاتdefault {
+function Invoke-WPFUpdatesdefault {
     <#
 
-    .ملخص
-        إعادة ضبطs Windows Update settings to default
+    .SYNOPSIS
+        Resets Windows Update settings to default
 
     #>
-    Write-WinUtilLog -Component "التحديثات" -Message "إعادة ضبطting Windows Update settings to default."
+    Write-WinUtilLog -Component "Updates" -Message "Resetting Windows Update settings to default."
 
-    Write-Host "جارٍ الإزالة: Windows Update settings managed by WinUtil..." -ForegroundColor Green
-    Write-WinUtilLog -Component "التحديثات" -Message "جارٍ الإزالة: Windows Update registry values managed by WinUtil."
+    Write-Host "Removing Windows Update settings managed by WinUtil..." -ForegroundColor Green
+    Write-WinUtilLog -Component "Updates" -Message "Removing Windows Update registry values managed by WinUtil."
 
     $registryValues = @(
         @{
@@ -7749,11 +7749,11 @@ function Invoke-WPFالتحديثاتdefault {
         },
         @{
             Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
-            Names = @("ExcludeWUDriversInQualityUpdate", "DeferFeatureالتحديثات", "DeferFeatureالتحديثاتPeriodInDays", "DeferQualityالتحديثات", "DeferQualityالتحديثاتPeriodInDays")
+            Names = @("ExcludeWUDriversInQualityUpdate", "DeferFeatureUpdates", "DeferFeatureUpdatesPeriodInDays", "DeferQualityUpdates", "DeferQualityUpdatesPeriodInDays")
         },
         @{
-            Path = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\الإعدادات"
-            Names = @("BranchReadinessLevel", "DeferFeatureالتحديثاتPeriodInDays", "DeferQualityالتحديثاتPeriodInDays")
+            Path = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings"
+            Names = @("BranchReadinessLevel", "DeferFeatureUpdatesPeriodInDays", "DeferQualityUpdatesPeriodInDays")
         },
         @{
             Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata"
@@ -7764,7 +7764,7 @@ function Invoke-WPFالتحديثاتdefault {
             Names = @("DontPromptForWindowsUpdate", "DontSearchWindowsUpdate", "DriverUpdateWizardWuSearchEnabled")
         },
         @{
-            Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\الإعداد"
+            Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config"
             Names = @("DODownloadMode")
         }
     )
@@ -7776,34 +7776,34 @@ function Invoke-WPFالتحديثاتdefault {
     }
 
     $explorerPolicyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer"
-    $settingsPageVisibility = (Get-ItemProperty -Path $explorerPolicyPath -Name "الإعداداتPageVisibility" -ErrorAction SilentlyContinue).الإعداداتPageVisibility
+    $settingsPageVisibility = (Get-ItemProperty -Path $explorerPolicyPath -Name "SettingsPageVisibility" -ErrorAction SilentlyContinue).SettingsPageVisibility
     if ($settingsPageVisibility -eq "hide:windowsupdate") {
-        Write-Host "جارٍ الإزالة: WinUtil's legacy Windows Update page restriction..."
-        Write-WinUtilLog -Component "التحديثات" -Message "جارٍ الإزالة: the legacy Windows Update settings page restriction."
-        Remove-ItemProperty -Path $explorerPolicyPath -Name "الإعداداتPageVisibility" -ErrorAction SilentlyContinue
+        Write-Host "Removing WinUtil's legacy Windows Update page restriction..."
+        Write-WinUtilLog -Component "Updates" -Message "Removing the legacy Windows Update settings page restriction."
+        Remove-ItemProperty -Path $explorerPolicyPath -Name "SettingsPageVisibility" -ErrorAction SilentlyContinue
     }
 
     Write-Host "Reenabling Windows Update Services..." -ForegroundColor Green
-    Write-WinUtilLog -Component "التحديثات" -Message "Restoring Windows Update service startup types."
+    Write-WinUtilLog -Component "Updates" -Message "Restoring Windows Update service startup types."
 
     Write-Host "Restored BITS to Manual."
-    Write-WinUtilLog -Component "التحديثات" -Message "Restoring BITS service to Manual."
+    Write-WinUtilLog -Component "Updates" -Message "Restoring BITS service to Manual."
     Set-Service -Name BITS -StartupType Manual
 
     Write-Host "Restored wuauserv to Manual."
-    Write-WinUtilLog -Component "التحديثات" -Message "Restoring wuauserv service to Manual."
+    Write-WinUtilLog -Component "Updates" -Message "Restoring wuauserv service to Manual."
     Set-Service -Name wuauserv -StartupType Manual
 
     Write-Host "Restored UsoSvc to Automatic."
-    Write-WinUtilLog -Component "التحديثات" -Message "Starting UsoSvc service and restoring startup type to Automatic."
+    Write-WinUtilLog -Component "Updates" -Message "Starting UsoSvc service and restoring startup type to Automatic."
     Set-Service -Name UsoSvc -StartupType Automatic
     Start-Service -Name UsoSvc
 
     Write-Host "Enabling update related scheduled tasks..." -ForegroundColor Green
-    Write-WinUtilLog -Component "التحديثات" -Message "Enabling update related scheduled tasks."
+    Write-WinUtilLog -Component "Updates" -Message "Enabling update related scheduled tasks."
 
     $Tasks =
-        '\Microsoft\Windows\تثبيتService\*',
+        '\Microsoft\Windows\InstallService\*',
         '\Microsoft\Windows\UpdateOrchestrator\*',
         '\Microsoft\Windows\UpdateAssistant\*',
         '\Microsoft\Windows\WaaSMedic\*',
@@ -7815,20 +7815,20 @@ function Invoke-WPFالتحديثاتdefault {
     }
 
     Write-Host "===================================================" -ForegroundColor Green
-    Write-Host "---  Windows Update الإعدادات إعادة ضبط to افتراضي   ---" -ForegroundColor Green
+    Write-Host "---  Windows Update Settings Reset to Default   ---" -ForegroundColor Green
     Write-Host "===================================================" -ForegroundColor Green
 
     Write-Host "Note: You must restart your system in order for all changes to take effect." -ForegroundColor Yellow
-    Write-WinUtilLog -Component "التحديثات" -Message "Windows Update default workflow completed. Restart required."
+    Write-WinUtilLog -Component "Updates" -Message "Windows Update default workflow completed. Restart required."
 }
 
-function Invoke-WPFالتحديثاتdisable {
+function Invoke-WPFUpdatesdisable {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Disables Windows Update
 
-    .ملاحظات
+    .NOTES
         Disabling Windows Update is not recommended. This is only for advanced users who know what they are doing.
 
     #>
@@ -7839,38 +7839,38 @@ function Invoke-WPFالتحديثاتdisable {
         -Icon "Warning"
 
     if ($confirmation -ne "Yes") {
-        Write-WinUtilLog -Component "التحديثات" -Message "Windows Update disable workflow cancelled."
+        Write-WinUtilLog -Component "Updates" -Message "Windows Update disable workflow cancelled."
         return
     }
 
-    Write-WinUtilLog -Component "التحديثات" -Message "Disabling Windows Update settings."
+    Write-WinUtilLog -Component "Updates" -Message "Disabling Windows Update settings."
 
-    Write-Host "الإعدادuring registry settings..." -ForegroundColor Yellow
-    Write-WinUtilLog -Component "التحديثات" -Message "الإعدادuring Windows Update registry policy values for disable mode."
+    Write-Host "Configuring registry settings..." -ForegroundColor Yellow
+    Write-WinUtilLog -Component "Updates" -Message "Configuring Windows Update registry policy values for disable mode."
     New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Force
 
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoUpdate" -Type DWord -Value 1
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "AUOptions" -Type DWord -Value 1
 
-    New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\الإعداد" -Force
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\الإعداد" -Name "DODownloadMode" -Type DWord -Value 0
+    New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" -Force
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" -Name "DODownloadMode" -Type DWord -Value 0
 
     foreach ($serviceName in @("BITS", "wuauserv", "UsoSvc")) {
         Write-Host "Stopping and disabling $serviceName service."
-        Write-WinUtilLog -Component "التحديثات" -Message "Stopping and disabling $serviceName service."
+        Write-WinUtilLog -Component "Updates" -Message "Stopping and disabling $serviceName service."
         Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
         Set-Service -Name $serviceName -StartupType Disabled
     }
 
     Remove-Item -Path "C:\Windows\SoftwareDistribution\*" -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "Cleared SoftwareDistribution folder."
-    Write-WinUtilLog -Component "التحديثات" -Message "Cleared SoftwareDistribution folder."
+    Write-WinUtilLog -Component "Updates" -Message "Cleared SoftwareDistribution folder."
 
     Write-Host "Disabling update related scheduled tasks..." -ForegroundColor Yellow
-    Write-WinUtilLog -Component "التحديثات" -Message "Disabling update related scheduled tasks."
+    Write-WinUtilLog -Component "Updates" -Message "Disabling update related scheduled tasks."
 
     $Tasks =
-        '\Microsoft\Windows\تثبيتService\*',
+        '\Microsoft\Windows\InstallService\*',
         '\Microsoft\Windows\UpdateOrchestrator\*',
         '\Microsoft\Windows\UpdateAssistant\*',
         '\Microsoft\Windows\WaaSMedic\*',
@@ -7886,16 +7886,16 @@ function Invoke-WPFالتحديثاتdisable {
     Write-Host "=================================" -ForegroundColor Green
 
     Write-Host "Note: You must restart your system in order for all changes to take effect." -ForegroundColor Yellow
-    Write-WinUtilLog -Component "التحديثات" -Message "Windows Update disable workflow completed. Restart required."
+    Write-WinUtilLog -Component "Updates" -Message "Windows Update disable workflow completed. Restart required."
 }
 
-function Invoke-WPFالتحديثاتsecurity {
+function Invoke-WPFUpdatessecurity {
     <#
 
-    .ملخص
+    .SYNOPSIS
         Sets Windows Update to recommended settings
 
-    .وصف
+    .DESCRIPTION
         1. Disables driver offering through Windows Update
         2. Defers feature updates for 365 days
         3. Defers quality updates for 4 days
@@ -7904,17 +7904,17 @@ function Invoke-WPFالتحديثاتsecurity {
     #>
 
     Write-Host "Disabling driver offering through Windows Update..."
-    Write-WinUtilLog -Component "التحديثات" -Message "تطبيقing recommended Windows Update settings."
-    Write-WinUtilLog -Component "التحديثات" -Message "Disabling driver offering through Windows Update."
+    Write-WinUtilLog -Component "Updates" -Message "Applying recommended Windows Update settings."
+    Write-WinUtilLog -Component "Updates" -Message "Disabling driver offering through Windows Update."
 
     $windowsUpdatePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
     $automaticUpdatePolicyPath = Join-Path $windowsUpdatePolicyPath "AU"
 
     Write-Host "Restoring Windows Update availability..."
-    Write-WinUtilLog -Component "التحديثات" -Message "Restoring Windows Update services and scheduled tasks before applying recommended settings."
+    Write-WinUtilLog -Component "Updates" -Message "Restoring Windows Update services and scheduled tasks before applying recommended settings."
 
     Remove-ItemProperty -Path $automaticUpdatePolicyPath -Name "NoAutoUpdate" -ErrorAction SilentlyContinue
-    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\الإعداد" -Name "DODownloadMode" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" -Name "DODownloadMode" -ErrorAction SilentlyContinue
 
     Set-Service -Name BITS -StartupType Manual
     Set-Service -Name wuauserv -StartupType Manual
@@ -7922,7 +7922,7 @@ function Invoke-WPFالتحديثاتsecurity {
     Start-Service -Name UsoSvc
 
     $Tasks =
-        '\Microsoft\Windows\تثبيتService\*',
+        '\Microsoft\Windows\InstallService\*',
         '\Microsoft\Windows\UpdateOrchestrator\*',
         '\Microsoft\Windows\UpdateAssistant\*',
         '\Microsoft\Windows\WaaSMedic\*',
@@ -7946,20 +7946,20 @@ function Invoke-WPFالتحديثاتsecurity {
     Set-ItemProperty -Path $windowsUpdatePolicyPath -Name "ExcludeWUDriversInQualityUpdate" -Type DWord -Value 1
 
     Write-Host "Deferring feature updates by 365 days and quality updates by 4 days..."
-    Write-WinUtilLog -Component "التحديثات" -Message "Deferring feature updates by 365 days and quality updates by 4 days."
+    Write-WinUtilLog -Component "Updates" -Message "Deferring feature updates by 365 days and quality updates by 4 days."
 
-    Set-ItemProperty -Path $windowsUpdatePolicyPath -Name "DeferFeatureالتحديثات" -Type DWord -Value 1
-    Set-ItemProperty -Path $windowsUpdatePolicyPath -Name "DeferFeatureالتحديثاتPeriodInDays" -Type DWord -Value 365
-    Set-ItemProperty -Path $windowsUpdatePolicyPath -Name "DeferQualityالتحديثات" -Type DWord -Value 1
-    Set-ItemProperty -Path $windowsUpdatePolicyPath -Name "DeferQualityالتحديثاتPeriodInDays" -Type DWord -Value 4
+    Set-ItemProperty -Path $windowsUpdatePolicyPath -Name "DeferFeatureUpdates" -Type DWord -Value 1
+    Set-ItemProperty -Path $windowsUpdatePolicyPath -Name "DeferFeatureUpdatesPeriodInDays" -Type DWord -Value 365
+    Set-ItemProperty -Path $windowsUpdatePolicyPath -Name "DeferQualityUpdates" -Type DWord -Value 1
+    Set-ItemProperty -Path $windowsUpdatePolicyPath -Name "DeferQualityUpdatesPeriodInDays" -Type DWord -Value 4
 
-    $legacyالإعداداتPath = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\الإعدادات"
-    foreach ($legacyValue in @("BranchReadinessLevel", "DeferFeatureالتحديثاتPeriodInDays", "DeferQualityالتحديثاتPeriodInDays")) {
-        Remove-ItemProperty -Path $legacyالإعداداتPath -Name $legacyValue -ErrorAction SilentlyContinue
+    $legacySettingsPath = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings"
+    foreach ($legacyValue in @("BranchReadinessLevel", "DeferFeatureUpdatesPeriodInDays", "DeferQualityUpdatesPeriodInDays")) {
+        Remove-ItemProperty -Path $legacySettingsPath -Name $legacyValue -ErrorAction SilentlyContinue
     }
 
     Write-Host "Preventing automatic restarts while users are signed in..."
-    Write-WinUtilLog -Component "التحديثات" -Message "الإعدادuring scheduled automatic updates without restarting while users are signed in."
+    Write-WinUtilLog -Component "Updates" -Message "Configuring scheduled automatic updates without restarting while users are signed in."
 
     New-Item -Path $automaticUpdatePolicyPath -Force
     # NoAutoRebootWithLoggedOnUsers only applies when automatic updates use option 4.
@@ -7968,15 +7968,15 @@ function Invoke-WPFالتحديثاتsecurity {
     Set-ItemProperty -Path $automaticUpdatePolicyPath -Name "AUPowerManagement" -Type DWord -Value 0
 
     Write-Host "================================="
-    Write-Host "-- التحديثات Set to موصى به ---"
+    Write-Host "-- Updates Set to Recommended ---"
     Write-Host "================================="
-    Write-WinUtilLog -Component "التحديثات" -Message "موصى به Windows Update settings workflow completed."
+    Write-WinUtilLog -Component "Updates" -Message "Recommended Windows Update settings workflow completed."
 }
 
 $sync.configs.applications = @'
 {
   "WPFInstall1password": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "1password",
     "content": "1Password",
     "description": "1Password is a password manager that allows you to store and manage your passwords securely.",
@@ -7985,7 +7985,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstall7zip": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "7zip",
     "content": "7-Zip",
     "description": "7-Zip is a free and open-source file archiver utility. It supports several compression formats and provides a high compression ratio, making it a popular choice for file compression.",
@@ -7994,7 +7994,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalladobe": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "adobereader",
     "content": "Adobe Acrobat Reader",
     "description": "Adobe Acrobat Reader is a free PDF viewer with essential features for viewing, printing, and annotating PDF documents.",
@@ -8003,7 +8003,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstalladvancedip": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "advanced-ip-scanner",
     "content": "Advanced IP Scanner",
     "description": "Advanced IP Scanner is a fast and easy-to-use network scanner. It is designed to analyze LAN networks and provides information about connected devices.",
@@ -8012,7 +8012,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallaimp": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "aimp",
     "content": "AIMP (Music Player)",
     "description": "AIMP is a feature-rich music player with support for various audio formats, playlists, and customizable user interface.",
@@ -8021,7 +8021,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallangryipscanner": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "angryip",
     "content": "Angry IP Scanner",
     "description": "Angry IP Scanner is an open-source and cross-platform network scanner. It is used to scan IP addresses and ports, providing information about network connectivity.",
@@ -8030,7 +8030,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallanydesk": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "anydesk",
     "content": "AnyDesk",
     "description": "AnyDesk is a remote desktop software that enables users to access and control computers remotely. It is known for its fast connection and low latency.",
@@ -8039,7 +8039,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallaudacity": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "audacity",
     "content": "Audacity",
     "description": "Audacity is a free and open-source audio editing software known for its powerful recording and editing capabilities.",
@@ -8048,7 +8048,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallautoruns": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "autoruns",
     "content": "Autoruns",
     "description": "This utility shows you what programs are configured to run during system bootup or login.",
@@ -8057,7 +8057,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallrdcman": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "rdcman",
     "content": "RDCMan",
     "description": "RDCMan manages multiple remote desktop connections. It is useful for managing server labs where you need regular access to each machine such as automated checkin systems and data centers.",
@@ -8066,7 +8066,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallautohotkey": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "autohotkey",
     "content": "AutoHotkey",
     "description": "AutoHotkey is a scripting language for Windows that allows users to create custom automation scripts and macros. It is often used for automating repetitive tasks and customizing keyboard shortcuts.",
@@ -8075,7 +8075,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallbattlenet": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "na",
     "winget": "Blizzard.BattleNet",
     "content": "Battle.net",
@@ -8084,7 +8084,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallbitwarden": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "bitwarden",
     "content": "Bitwarden",
     "description": "Bitwarden is an open-source password management solution. It allows users to store and manage their passwords in a secure and encrypted vault, accessible across multiple devices.",
@@ -8093,7 +8093,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallblender": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "blender",
     "content": "Blender (3D Graphics)",
     "description": "Blender is a powerful open-source 3D creation suite, offering modeling, sculpting, animation, and rendering tools.",
@@ -8102,7 +8102,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallbrave": {
-    "category": "المتصفحات",
+    "category": "Browsers",
     "choco": "brave",
     "content": "Brave",
     "description": "Brave is a privacy-focused web browser that blocks ads and trackers, offering a faster and safer browsing experience.",
@@ -8111,7 +8111,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallbruno": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "bruno",
     "content": "Bruno",
     "description": "Bruno is a local-first API client that stores collections as plain text files for version control and collaboration.",
@@ -8120,7 +8120,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallbulkcrapuninstaller": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "bulk-crap-uninstaller",
     "content": "Bulk Crap Uninstaller",
     "description": "Bulk Crap Uninstaller is a free and open-source uninstaller utility for Windows. It helps users remove unwanted programs and clean up their system by uninstalling multiple applications at once.",
@@ -8129,7 +8129,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallblurautoclicker": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "na",
     "content": "BlurAutoClicker",
     "description": "An Auto-clicker with a few advanced features and generally better performance than popular alternatives.",
@@ -8138,7 +8138,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallcalibre": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "calibre",
     "content": "Calibre",
     "description": "Calibre is a powerful and easy-to-use e-book manager, viewer, and converter.",
@@ -8147,7 +8147,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallcemu": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "cemu",
     "content": "Cemu",
     "description": "Cemu is a highly experimental software to emulate Wii U applications on PC.",
@@ -8156,7 +8156,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallchatgpt": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "na",
     "content": "ChatGPT Desktop",
     "description": "The official ChatGPT desktop app for Windows, distributed through the Microsoft Store.",
@@ -8165,7 +8165,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallchatterino": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "chatterino",
     "content": "Chatterino",
     "description": "Chatterino is a chat client for Twitch chat that offers a clean and customizable interface for a better streaming experience.",
@@ -8174,7 +8174,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallchrome": {
-    "category": "المتصفحات",
+    "category": "Browsers",
     "choco": "googlechrome",
     "content": "Chrome",
     "description": "Google Chrome is a widely used web browser known for its speed, simplicity, and seamless integration with Google services.",
@@ -8183,7 +8183,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallchromium": {
-    "category": "المتصفحات",
+    "category": "Browsers",
     "choco": "chromium",
     "content": "Chromium",
     "description": "Chromium is the open-source project that serves as the foundation for various web browsers, including Chrome.",
@@ -8192,7 +8192,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallcinebenchr23": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "na",
     "content": "Cinebench R23",
     "description": "Cinebench R23 is a benchmark tool for comparing CPU rendering performance across systems.",
@@ -8201,7 +8201,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallclaude": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "claude",
     "content": "Claude Desktop",
     "description": "Anthropic's Claude desktop application for focused AI-assisted work and chat.",
@@ -8210,7 +8210,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallclaude-code": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "claude-code",
     "content": "Claude Code",
     "description": "Anthropic's agentic coding tool for terminal and IDE development workflows.",
@@ -8219,7 +8219,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallcmake": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "cmake",
     "content": "CMake",
     "description": "CMake is an open-source, cross-platform family of tools designed to build, test and package software.",
@@ -8228,7 +8228,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallcodex": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "codex",
     "content": "Codex",
     "description": "Codex CLI is an OpenAI coding agent that runs locally in your terminal.",
@@ -8237,7 +8237,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallcpuz": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "cpu-z",
     "content": "CPU-Z",
     "description": "CPU-Z is a system monitoring and diagnostic tool for Windows. It provides detailed information about the computer's hardware components, including the CPU, memory, and motherboard.",
@@ -8246,7 +8246,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallcrystaldiskinfo": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "crystaldiskinfo",
     "content": "Crystal Disk Info",
     "description": "Crystal Disk Info is a disk health monitoring tool that provides information about the status and performance of hard drives. It helps users anticipate potential issues and monitor drive health.",
@@ -8255,7 +8255,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallcrystaldiskmark": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "crystaldiskmark",
     "content": "Crystal Disk Mark",
     "description": "Crystal Disk Mark is a disk benchmarking tool that measures the read and write speeds of storage devices. It helps users assess the performance of their hard drives and SSDs.",
@@ -8264,7 +8264,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallcursor": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "cursoride",
     "content": "Cursor",
     "description": "AI-powered code editor (VS Code-based) with agentic coding features and integrated AI assistance for development workflows.",
@@ -8273,7 +8273,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallddu": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "ddu",
     "content": "Display Driver Uninstaller",
     "description": "Display Driver Uninstaller (DDU) is a tool for completely uninstalling graphics drivers from NVIDIA, AMD, and Intel. It is useful for troubleshooting graphics driver-related issues.",
@@ -8282,7 +8282,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalldiscord": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "discord",
     "content": "Discord",
     "description": "Discord is a popular communication platform with voice, video, and text chat, designed for gamers but used by a wide range of communities.",
@@ -8291,7 +8291,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstalldismtools": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "dismtools",
     "content": "DISMTools",
     "description": "DISMTools is a fast, customizable GUI for the DISM utility, supporting Windows images from Windows 7 onward. It handles installations on any drive, offers project support, and lets users tweak settings like color modes, language, and DISM versions; powered by both native DISM and a managed DISM API.",
@@ -8300,7 +8300,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallntlite": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "ntlite-free",
     "content": "NTLite",
     "description": "Integrate updates, drivers, automate Windows and application setup, speedup Windows deployment process and have it all set for the next time.",
@@ -8309,7 +8309,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstalldorion": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "dorion",
     "content": "Dorion",
     "description": "Tiny alternative Discord client with a smaller footprint, snappier startup, themes, plugins and more!",
@@ -8318,7 +8318,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalldockerdesktop": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "docker-desktop",
     "content": "Docker Desktop",
     "description": "Docker Desktop provides a local environment for building, running, and testing containerized applications on Windows.",
@@ -8327,7 +8327,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstalldotnet6": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "dotnet-6.0-runtime",
     "content": ".NET Desktop Runtime 6",
     "description": ".NET Desktop Runtime 6 is a runtime environment required for running applications developed with .NET 6.",
@@ -8336,7 +8336,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalldotnet8": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "dotnet-8.0-runtime",
     "content": ".NET Desktop Runtime 8",
     "description": ".NET Desktop Runtime 8 is a runtime environment required for running applications developed with .NET 8.",
@@ -8345,7 +8345,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalldotnet9": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "dotnet-9.0-runtime",
     "content": ".NET Desktop Runtime 9",
     "description": ".NET Desktop Runtime 9 is a runtime environment required for running applications developed with .NET 9.",
@@ -8354,7 +8354,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalldotnet10": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "dotnet-10.0-runtime",
     "content": ".NET Desktop Runtime 10",
     "description": ".NET Desktop Runtime 10 is a runtime environment required for running applications developed with .NET 10.",
@@ -8363,7 +8363,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalldropbox": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "dropbox",
     "content": "Dropbox",
     "description": "Dropbox is a cloud storage client for syncing files, sharing content, and keeping documents available across devices.",
@@ -8372,7 +8372,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstalleaapp": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "ea-app",
     "content": "EA App",
     "description": "EA App is a platform for accessing and playing Electronic Arts games.",
@@ -8381,7 +8381,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstalleartrumpet": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "eartrumpet",
     "content": "EarTrumpet (Audio)",
     "description": "EarTrumpet is an audio control app for Windows, providing a simple and intuitive interface for managing sound settings.",
@@ -8390,7 +8390,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalledge": {
-    "category": "المتصفحات",
+    "category": "Browsers",
     "choco": "microsoft-edge",
     "content": "Edge",
     "description": "Microsoft Edge is a modern web browser built on Chromium, offering performance, security, and integration with Microsoft services.",
@@ -8399,7 +8399,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstalles-de": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "",
     "content": "EmulationStation Desktop Edition",
     "_comment": "This and emulationstation are two completely different things. ES-DE is your frontend for everything and has its own set of emulators. Emulationstation is a graphical frontend for RetroArch.",
@@ -8409,7 +8409,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallenteauth": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "ente-auth",
     "content": "Ente Auth",
     "description": "Ente Auth is a free, cross-platform, end-to-end encrypted authenticator app.",
@@ -8418,16 +8418,16 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallepicgames": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "epicgameslauncher",
-    "content": "Epic الألعاب Launcher",
-    "description": "Epic الألعاب Launcher is the client for accessing and playing games from the Epic الألعاب Store.",
+    "content": "Epic Games Launcher",
+    "description": "Epic Games Launcher is the client for accessing and playing games from the Epic Games Store.",
     "link": "https://www.epicgames.com/store/en-US/",
-    "winget": "Epicالألعاب.EpicالألعابLauncher",
+    "winget": "EpicGames.EpicGamesLauncher",
     "foss": false
   },
   "WPFInstallfiles": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "files",
     "content": "Files",
     "description": "Alternative file explorer.",
@@ -8436,7 +8436,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallfirefox": {
-    "category": "المتصفحات",
+    "category": "Browsers",
     "choco": "firefox",
     "content": "Firefox",
     "description": "Mozilla Firefox is an open-source web browser known for its customization options, privacy features, and extensions.",
@@ -8445,7 +8445,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallfirefoxesr": {
-    "category": "المتصفحات",
+    "category": "Browsers",
     "choco": "FirefoxESR",
     "content": "Firefox ESR",
     "description": "Mozilla Firefox is an open-source web browser known for its customization options, privacy features, and extensions. Firefox ESR (Extended Support Release) receives major updates every 42 weeks with minor updates such as crash fixes, security fixes and policy updates as needed, but at least every four weeks.",
@@ -8454,7 +8454,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallfloorp": {
-    "category": "المتصفحات",
+    "category": "Browsers",
     "choco": "floorp",
     "content": "Floorp",
     "description": "Floorp is an open-source web browser project that aims to provide a simple and fast browsing experience.",
@@ -8463,7 +8463,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallflux": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "flux",
     "content": "F.lux",
     "description": "f.lux adjusts the color temperature of your screen to reduce eye strain during nighttime use.",
@@ -8472,7 +8472,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallfoobar": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "foobar2000",
     "content": "foobar2000 (Music Player)",
     "description": "foobar2000 is a highly customizable and extensible music player for Windows, known for its modular design and advanced features.",
@@ -8481,7 +8481,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallfnm": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "fnm",
     "content": "Fast Node Manager",
     "description": "Fast Node Manager (fnm) is a fast, cross-platform tool for installing and switching between Node.js versions.",
@@ -8490,7 +8490,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallfoxpdfreader": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "foxitreader",
     "content": "Foxit PDF Reader",
     "description": "Foxit PDF Reader is a free PDF viewer with a familiar ribbon-style interface.",
@@ -8499,7 +8499,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallgeforcenow": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "nvidia-geforce-now",
     "content": "GeForce NOW",
     "description": "GeForce NOW is a cloud gaming service that allows you to play high-quality PC games on your device.",
@@ -8508,7 +8508,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallgimp": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "gimp",
     "content": "GIMP (Image Editor)",
     "description": "GIMP is a versatile open-source raster graphics editor used for tasks such as photo retouching, image editing, and image composition.",
@@ -8517,7 +8517,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallgit": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "git",
     "content": "Git",
     "description": "Git is a distributed version control system widely used for tracking changes in source code during software development.",
@@ -8526,7 +8526,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallgitextensions": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "gitextensions",
     "content": "Git Extensions",
     "description": "Git Extensions is a graphical Git client for Windows with repository, history, and commit management tools.",
@@ -8535,7 +8535,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallgithubcli": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "gh",
     "content": "GitHub CLI",
     "description": "GitHub CLI brings pull requests, issues, releases, and other GitHub workflows to the terminal.",
@@ -8544,7 +8544,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallgithubdesktop": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "git;github-desktop",
     "content": "GitHub Desktop",
     "description": "GitHub Desktop is a visual Git client that simplifies collaboration on GitHub repositories with an easy-to-use interface.",
@@ -8553,7 +8553,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallgog": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "goggalaxy",
     "content": "GOG Galaxy",
     "description": "GOG Galaxy is a gaming client that offers DRM-free games, additional content, and more.",
@@ -8562,7 +8562,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallgolang": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "golang",
     "content": "Go",
     "description": "Go (or Golang) is a statically typed, compiled programming language designed for simplicity, reliability, and efficiency.",
@@ -8571,7 +8571,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallgoogledrive": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "googledrive",
     "content": "Google Drive",
     "description": "File syncing across devices all tied to your Google account.",
@@ -8580,7 +8580,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallgpuz": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "gpu-z",
     "content": "GPU-Z",
     "description": "GPU-Z provides detailed information about your graphics card and GPU.",
@@ -8589,7 +8589,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallgsudo": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "gsudo",
     "content": "gsudo",
     "description": "gsudo is a sudo equivalent for Windows. It allows you to run commands with elevated administrative privileges directly within the current console window.",
@@ -8598,7 +8598,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallhelium": {
-    "category": "المتصفحات",
+    "category": "Browsers",
     "choco": "helium",
     "content": "Helium",
     "description": "Private, fast, and honest web browser.",
@@ -8607,7 +8607,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallhugo": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "hugo-extended",
     "content": "Hugo",
     "description": "The world's fastest framework for building websites.",
@@ -8616,7 +8616,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallhandbrake": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "handbrake",
     "content": "HandBrake",
     "description": "HandBrake is an open-source video transcoder, allowing you to convert video from nearly any format to a selection of widely supported codecs.",
@@ -8625,16 +8625,16 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallheroiclauncher": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "heroic-games-launcher",
-    "content": "Heroic الألعاب Launcher",
-    "description": "Heroic الألعاب Launcher is an open-source alternative game launcher for Epic الألعاب Store.",
+    "content": "Heroic Games Launcher",
+    "description": "Heroic Games Launcher is an open-source alternative game launcher for Epic Games Store.",
     "link": "https://heroicgameslauncher.com/",
-    "winget": "HeroicالألعابLauncher.HeroicالألعابLauncher",
+    "winget": "HeroicGamesLauncher.HeroicGamesLauncher",
     "foss": true
   },
   "WPFInstallhwinfo": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "hwinfo",
     "content": "HWiNFO",
     "description": "HWiNFO provides comprehensive hardware information and diagnostics for Windows.",
@@ -8643,7 +8643,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallhwmonitor": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "hwmonitor",
     "content": "HWMonitor",
     "description": "HWMonitor is a hardware monitoring program that reads PC systems main health sensors.",
@@ -8652,7 +8652,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallimageglass": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "imageglass",
     "content": "ImageGlass (Image Viewer)",
     "description": "ImageGlass is a versatile image viewer with support for various image formats and a focus on simplicity and speed.",
@@ -8661,7 +8661,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallinternetdownloadmanager": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "internet-download-manager",
     "content": "Internet Download Manager",
     "description": "Internet Download Manager is a download manager for accelerating, resuming, and scheduling file downloads.",
@@ -8670,7 +8670,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallirfanview": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "irfanview",
     "content": "IrfanView",
     "description": "IrfanView is a lightweight, fast, and free image viewer and editor. Supports multiple formats, batch processing, and powerful plugins.",
@@ -8679,7 +8679,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallitch": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "itch",
     "content": "Itch.io",
     "description": "Itch.io is a digital distribution platform for indie games and creative projects.",
@@ -8688,7 +8688,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallitunes": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "itunes",
     "content": "iTunes",
     "description": "iTunes is a media player, media library, and online radio broadcaster application developed by Apple Inc.",
@@ -8697,34 +8697,34 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstalljava8": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "corretto8jdk",
     "content": "Amazon Corretto 8 (LTS)",
-    "description": "Amazon Corretto is a no-cost, multiplatform, production-ready distribution of the Open Java التطوير Kit (OpenJDK).",
+    "description": "Amazon Corretto is a no-cost, multiplatform, production-ready distribution of the Open Java Development Kit (OpenJDK).",
     "link": "https://aws.amazon.com/corretto",
     "winget": "Amazon.Corretto.8.JDK",
     "foss": true
   },
   "WPFInstalljava21": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "corretto21jdk",
     "content": "Amazon Corretto 21 (LTS)",
-    "description": "Amazon Corretto is a no-cost, multiplatform, production-ready distribution of the Open Java التطوير Kit (OpenJDK).",
+    "description": "Amazon Corretto is a no-cost, multiplatform, production-ready distribution of the Open Java Development Kit (OpenJDK).",
     "link": "https://aws.amazon.com/corretto",
     "winget": "Amazon.Corretto.21.JDK",
     "foss": true
   },
   "WPFInstalljava25": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "corretto25jdk",
     "content": "Amazon Corretto 25 (LTS)",
-    "description": "Amazon Corretto is a no-cost, multiplatform, production-ready distribution of the Open Java التطوير Kit (OpenJDK).",
+    "description": "Amazon Corretto is a no-cost, multiplatform, production-ready distribution of the Open Java Development Kit (OpenJDK).",
     "link": "https://aws.amazon.com/corretto",
     "winget": "Amazon.Corretto.25.JDK",
     "foss": true
   },
   "WPFInstalljellyfinmediaplayer": {
-    "category": "أدوات ذاتية الاستضافة",
+    "category": "Selfhosted Tools",
     "choco": "jellyfin-media-player",
     "content": "Jellyfin Media Player",
     "description": "Jellyfin Media Player is a client application for the Jellyfin media server, providing access to your media library.",
@@ -8733,7 +8733,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalljellyfinserver": {
-    "category": "أدوات ذاتية الاستضافة",
+    "category": "Selfhosted Tools",
     "choco": "jellyfin",
     "content": "Jellyfin Server",
     "description": "Jellyfin Server is an open-source media server software, allowing you to organize and stream your media library.",
@@ -8742,7 +8742,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalljetbrains": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "jetbrainstoolbox",
     "content": "Jetbrains Toolbox",
     "description": "Jetbrains Toolbox is a platform for easy installation and management of JetBrains developer tools.",
@@ -8751,7 +8751,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstalljpegview": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "jpegview",
     "content": "JPEG View",
     "description": "JPEGView is a lean, fast and highly configurable viewer/editor for JPEG, BMP, PNG, WEBP, TGA, GIF, JXL, HEIC, HEIF, AVIF, and TIFF images with a minimal GUI.",
@@ -8760,7 +8760,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalljoplin": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "joplin",
     "content": "Joplin",
     "description": "Joplin is an open-source note-taking and to-do application with synchronization capabilities.",
@@ -8769,7 +8769,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallkeepassxc": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "keepassxc",
     "content": "KeePassXC",
     "description": "KeePassXC is a modern, secure, and open-source password manager that stores and manages your most sensitive information. You can run KeePassXC on Windows, macOS, and Linux systems. KeePassXC is for people with extremely high demands of secure personal data management. It saves many different types of information, such as usernames, passwords, URLs, attachments, and notes in an offline, encrypted file that can be stored in any location, including private and public cloud solutions. For easy identification and management, user-defined titles and icons can be specified for entries. In addition, entries are sorted into customizable groups. An integrated search function allows you to use advanced patterns to easily find any entry in your database. A customizable, fast, and easy-to-use password generator utility allows you to create passwords with any combination of characters or easy to remember passphrases.",
@@ -8778,16 +8778,16 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallklite": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "k-litecodecpack-standard",
     "content": "K-Lite Codec Standard",
-    "description": "K-Lite Codec Pack قياسي is a collection of audio and video codecs and related tools, providing essential components for media playback.",
+    "description": "K-Lite Codec Pack Standard is a collection of audio and video codecs and related tools, providing essential components for media playback.",
     "link": "https://www.codecguide.com/",
     "winget": "CodecGuide.K-LiteCodecPack.Standard",
     "foss": false
   },
   "WPFInstallkodi": {
-    "category": "أدوات ذاتية الاستضافة",
+    "category": "Selfhosted Tools",
     "choco": "kodi",
     "content": "Kodi Media Center",
     "description": "Kodi is an open-source media center application that allows you to play and view most videos, music, podcasts, and other digital media files.",
@@ -8796,7 +8796,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalllazygit": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "lazygit",
     "content": "Lazygit",
     "description": "Simple terminal UI for git commands.",
@@ -8805,16 +8805,16 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalllibreoffice": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "libreoffice-fresh",
     "content": "LibreOffice",
     "description": "LibreOffice is a powerful and free office suite, compatible with other major office suites.",
     "link": "https://www.libreoffice.org/",
-    "winget": "TheالمستنداتFoundation.LibreOffice",
+    "winget": "TheDocumentFoundation.LibreOffice",
     "foss": true
   },
   "WPFInstalllibrewolf": {
-    "category": "المتصفحات",
+    "category": "Browsers",
     "choco": "librewolf",
     "content": "LibreWolf",
     "description": "LibreWolf is a privacy-focused web browser based on Firefox, with additional privacy and security enhancements.",
@@ -8823,7 +8823,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalllocalsend": {
-    "category": "أدوات ذاتية الاستضافة",
+    "category": "Selfhosted Tools",
     "choco": "localsend.install",
     "content": "LocalSend",
     "description": "An open-source cross-platform alternative to AirDrop.",
@@ -8832,7 +8832,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallmpc-qt": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "mediainfo",
     "content": "mpc-qt",
     "description": "Media Player Classic Qute Theater",
@@ -8841,7 +8841,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallmpv": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "content": "mpv",
     "description": "mpv is a free, open source, and cross-platform media player supporting a wide variety of media formats, codecs, and subtitle types.",
     "link": "https://mpv.io/",
@@ -8849,7 +8849,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallmatrix": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "element-desktop",
     "content": "Element",
     "description": "Element is a client for Matrix; an open network for secure, decentralized communication.",
@@ -8858,7 +8858,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallminitoolpartitionwizard": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "minitoolpartitionwizard",
     "content": "MiniTool Partition Wizard",
     "description": "Comprehensive free partition manager that performs advanced operations Windows natively cannot, such as merging partitions, converting file systems, and organizing disk capacity.",
@@ -8867,7 +8867,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallmodrinth": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "modrinth-app",
     "content": "Modrinth App",
     "description": "Modrinth App is a desktop application for managing Minecraft mods and modpacks.",
@@ -8876,7 +8876,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallmoonlight": {
-    "category": "أدوات ذاتية الاستضافة",
+    "category": "Selfhosted Tools",
     "choco": "moonlight-qt",
     "content": "Moonlight/GameStream Client",
     "description": "Moonlight/GameStream Client allows you to stream PC games to other devices over your local network.",
@@ -8885,7 +8885,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallmpchc": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "mpc-hc-clsid2",
     "content": "Media Player Classic - Home Cinema",
     "description": "Media Player Classic - Home Cinema (MPC-HC) is a free and open-source video and audio player for Windows. MPC-HC is based on the original Guliverkli project and contains many additional features and bug fixes.",
@@ -8894,7 +8894,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallmsedgeredirect": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "msedgeredirect",
     "content": "MSEdgeRedirect",
     "description": "A Tool to Redirect News, Search, Widgets, Weather, and More to your default browser.",
@@ -8903,7 +8903,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallmsiafterburner": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "msiafterburner",
     "content": "MSI Afterburner",
     "description": "MSI Afterburner is a graphics card overclocking utility with advanced features.",
@@ -8912,7 +8912,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallmullvadvpn": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "mullvad-app",
     "content": "Mullvad VPN",
     "description": "This is the VPN client software for the Mullvad VPN service.",
@@ -8921,16 +8921,16 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallmullvadbrowser": {
-    "category": "المتصفحات",
+    "category": "Browsers",
     "choco": "na",
-    "content": "Mullvad استعراضr",
-    "description": "Mullvad استعراضr is a privacy-focused web browser, developed in partnership with the Tor Project.",
+    "content": "Mullvad Browser",
+    "description": "Mullvad Browser is a privacy-focused web browser, developed in partnership with the Tor Project.",
     "link": "https://mullvad.net/browser",
-    "winget": "MullvadVPN.Mullvadاستعراضr",
+    "winget": "MullvadVPN.MullvadBrowser",
     "foss": true
   },
   "WPFInstallnomacs": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "nomacs",
     "content": "nomacs",
     "description": "nomacs is a free, open-source image viewer, which supports multiple platforms. You can use it for viewing all common image formats, including RAW and .psd images.",
@@ -8939,7 +8939,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallnanazip": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "nanazip",
     "content": "NanaZip",
     "description": "NanaZip is a fast and efficient file compression and decompression tool.",
@@ -8948,7 +8948,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallnetbird": {
-    "category": "أدوات ذاتية الاستضافة",
+    "category": "Selfhosted Tools",
     "choco": "netbird",
     "content": "NetBird",
     "description": "NetBird is an open-source alternative comparable to TailScale that can be connected to a self-hosted server.",
@@ -8957,7 +8957,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalltailscale": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "tailscale",
     "content": "Tailscale",
     "description": "The Tailscale client allows you to connect all your devices using WireGuard®, without the hassle. Tailscale makes it as easy as installing an app and signing in.",
@@ -8966,7 +8966,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallnaps2": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "naps2",
     "content": "NAPS2 (Scanner)",
     "description": "NAPS2 is a document scanning application that simplifies the process of creating electronic documents.",
@@ -8975,7 +8975,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallneovim": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "neovim",
     "content": "Neovim",
     "description": "Neovim is a highly extensible text editor and an improvement over the original Vim editor.",
@@ -8984,7 +8984,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallnextclouddesktop": {
-    "category": "أدوات ذاتية الاستضافة",
+    "category": "Selfhosted Tools",
     "choco": "nextcloud-client",
     "content": "Nextcloud Desktop",
     "description": "Nextcloud Desktop is the official desktop client for the Nextcloud file synchronization and sharing platform.",
@@ -8993,7 +8993,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallnmap": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "nmap",
     "content": "Nmap",
     "description": "Nmap (Network Mapper) is an open-source tool for network exploration and security auditing. It discovers devices on a network and provides information about their ports and services.",
@@ -9002,7 +9002,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallnodejs": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "nodejs",
     "content": "NodeJS",
     "description": "NodeJS is a JavaScript runtime built on Chrome's V8 JavaScript engine for building server-side and networking applications.",
@@ -9011,7 +9011,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallnodejslts": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "nodejs-lts",
     "content": "NodeJS LTS",
     "description": "NodeJS LTS provides Long-Term Support releases for stable and reliable server-side JavaScript development.",
@@ -9020,7 +9020,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallpnpm": {
-    "category": "التطوير",
+    "category": "Development",
     "content": "pnpm",
     "description": "pnpm is a fast and disk space efficient package manager for JavaScript and Node.js applications.",
     "link": "https://pnpm.io/",
@@ -9028,7 +9028,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallnotepadplus": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "notepadplusplus",
     "content": "Notepad++",
     "description": "Notepad++ is a free, open-source code editor and Notepad replacement with support for multiple languages.",
@@ -9037,7 +9037,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallnuget": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "nuget.commandline",
     "content": "NuGet",
     "description": "NuGet is a package manager for the .NET framework, enabling developers to manage and share libraries in their .NET applications.",
@@ -9046,7 +9046,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallnvclean": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "na",
     "content": "NVCleanstall",
     "description": "NVCleanstall is a tool designed to customize NVIDIA driver installations, allowing advanced users to control more aspects of the installation process.",
@@ -9055,7 +9055,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallobs": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "obs-studio",
     "content": "OBS Studio",
     "description": "OBS Studio is a free and open-source software for video recording and live streaming. It supports real-time video/audio capturing and mixing, making it popular among content creators.",
@@ -9064,7 +9064,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallobsidian": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "obsidian",
     "content": "Obsidian",
     "description": "Obsidian is a powerful note-taking and knowledge management application.",
@@ -9073,7 +9073,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallokular": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "okular",
     "content": "Okular",
     "description": "Okular is a versatile document viewer with advanced features.",
@@ -9082,7 +9082,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallonedrive": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "onedrive",
     "content": "OneDrive",
     "description": "OneDrive is a cloud storage service provided by Microsoft, allowing users to store and share files securely across devices.",
@@ -9091,7 +9091,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallonlyoffice": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "onlyoffice",
     "content": "ONLYOFFICE Desktop",
     "description": "ONLYOFFICE Desktop is a comprehensive office suite for document editing and collaboration.",
@@ -9100,7 +9100,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallOPAutoClicker": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "autoclicker",
     "content": "OPAutoClicker",
     "description": "A full-fledged autoclicker with two modes of autoclicking, at your dynamic cursor location or at a prespecified location.",
@@ -9109,7 +9109,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallopenrgb": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "openrgb",
     "content": "OpenRGB",
     "description": "OpenRGB is an open-source RGB lighting control software designed to manage and control RGB lighting for various components and peripherals.",
@@ -9118,7 +9118,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallOpenVPN": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "openvpn-connect",
     "content": "OpenVPN Connect",
     "description": "OpenVPN Connect is a VPN client that allows you to connect securely to a VPN server. It provides a secure and encrypted connection for protecting your online privacy.",
@@ -9127,7 +9127,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallOVirtualBox": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "virtualbox",
     "content": "Oracle VirtualBox",
     "description": "Oracle VirtualBox is a powerful and free open-source virtualization tool for x86 and AMD64/Intel64 architectures.",
@@ -9136,7 +9136,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallpolicyplus": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "na",
     "content": "Policy Plus",
     "description": "Local Group Policy Editor plus more, for all Windows editions.",
@@ -9145,7 +9145,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallprocessexplorer": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "procexp",
     "content": "Process Explorer",
     "description": "Process Explorer is a task manager and system monitor.",
@@ -9154,7 +9154,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallPaintdotnet": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "paint.net",
     "content": "Paint.NET",
     "description": "Paint.NET is a free image and photo editing software for Windows. It features an intuitive user interface and supports a wide range of powerful editing tools.",
@@ -9163,7 +9163,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallparsec": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "parsec",
     "content": "Parsec",
     "description": "Parsec is a low-latency, high-quality remote desktop sharing application for collaborating and gaming across devices.",
@@ -9172,7 +9172,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallpeazip": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "peazip",
     "content": "PeaZip",
     "description": "PeaZip is a free, open-source file archiver utility that supports multiple archive formats and provides encryption features.",
@@ -9181,7 +9181,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallpdf-xchange": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "pdfxchangeeditor",
     "content": "PDF-XChange Editor",
     "description": "A comprehensive Windows-based software suite and editor for creating, viewing, editing, annotating, and signing PDF files.",
@@ -9190,7 +9190,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallpdf24creator": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "pdf24",
     "content": "PDF24 Creator",
     "description": "Free and easy-to-use online/desktop PDF tools that make you more productive",
@@ -9199,7 +9199,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallpdfgear": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "pdfgear",
     "content": "PDFgear",
     "description": "PDFgear is a piece of full-featured PDF management software for Windows, macOS, and mobile, and it's completely free to use.",
@@ -9208,7 +9208,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallpdfsam": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "pdfsam",
     "content": "PDFsam Basic",
     "description": "PDFsam Basic is a free and open-source tool for splitting, merging, and rotating PDF files.",
@@ -9217,7 +9217,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallplaynite": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "playnite",
     "content": "Playnite",
     "description": "Playnite is an open-source video game library manager with one simple goal: To provide a unified interface for all of your games.",
@@ -9226,7 +9226,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallplex": {
-    "category": "أدوات ذاتية الاستضافة",
+    "category": "Selfhosted Tools",
     "choco": "plexmediaserver",
     "content": "Plex Media Server",
     "description": "Plex Media Server is a media server software that allows you to organize and stream your media library. It supports various media formats and offers a wide range of features.",
@@ -9235,7 +9235,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallplexdesktop": {
-    "category": "أدوات ذاتية الاستضافة",
+    "category": "Selfhosted Tools",
     "choco": "plex",
     "content": "Plex Desktop",
     "description": "Plex Desktop for Windows is the front end for Plex Media Server.",
@@ -9244,7 +9244,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallposh": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "oh-my-posh",
     "content": "Oh My Posh (Prompt)",
     "description": "Oh My Posh is a cross-platform prompt theme engine for any shell.",
@@ -9253,7 +9253,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallpostman": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "postman",
     "content": "Postman",
     "description": "Postman is an API platform and desktop client for designing, testing, documenting, and collaborating on APIs.",
@@ -9262,7 +9262,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallpowershell": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "powershell-core",
     "content": "PowerShell",
     "description": "PowerShell is a task automation framework and scripting language designed for system administrators, offering powerful command-line capabilities.",
@@ -9271,7 +9271,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallpowertoys": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "powertoys",
     "content": "PowerToys",
     "description": "PowerToys is a set of utilities for power users to enhance productivity, featuring tools like FancyZones, PowerRename, and more.",
@@ -9280,7 +9280,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallprismlauncher": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "prismlauncher",
     "content": "Prism Launcher",
     "description": "Prism Launcher is an open-source Minecraft launcher with the ability to manage multiple instances, accounts, and mods.",
@@ -9289,7 +9289,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallprocesslasso": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "plasso",
     "content": "Process Lasso",
     "description": "Process Lasso is a system optimization and automation tool that improves system responsiveness and stability by adjusting process priorities and CPU affinities.",
@@ -9298,7 +9298,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallprotonauth": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "protonauth",
     "content": "Proton Authenticator",
     "description": "2FA app from Proton to securely sync and backup 2FA codes.",
@@ -9307,7 +9307,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallprotonmail": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "protonmail",
     "content": "Proton Mail",
     "description": "Proton Mail is an end-to-end encrypted email service by Proton, protecting your privacy with zero-access encryption.",
@@ -9316,7 +9316,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallprotondrive": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "protondrive",
     "content": "Proton Drive",
     "description": "Proton Drive is an end-to-end encrypted Swiss vault for your files that protects your data.",
@@ -9325,7 +9325,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallprotonpass": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "protonpass",
     "content": "Proton Pass",
     "description": "Proton Pass is a cloud-based password manager with end-to-end encryption and unique email aliases.",
@@ -9334,7 +9334,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallprotonvpn": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "protonvpn",
     "content": "Proton VPN",
     "description": "Proton VPN is a no-logs VPN service that protects your privacy online with features like Secure Core and Tor over VPN.",
@@ -9343,7 +9343,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallprocessmonitor": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "procexp",
     "content": "Process Monitor",
     "description": "SysInternals Process Monitor is an advanced monitoring tool that shows real-time file system, registry, and process/thread activity.",
@@ -9352,7 +9352,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallputty": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "putty",
     "content": "PuTTY",
     "description": "PuTTY is a free and open-source terminal emulator, serial console, and network file transfer application. It supports various network protocols such as SSH, Telnet, and SCP.",
@@ -9361,7 +9361,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallpython3": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "python",
     "content": "Python3",
     "description": "Python is a versatile programming language used for web development, data analysis, artificial intelligence, and more.",
@@ -9370,7 +9370,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallqbittorrent": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "qbittorrent",
     "content": "qBittorrent",
     "description": "qBittorrent is a free and open-source BitTorrent client that aims to provide a feature-rich and lightweight alternative to other torrent clients.",
@@ -9379,7 +9379,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallqownnotes": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "qownnotes",
     "content": "QOwnNotes",
     "description": "QOwnNotes is a free open-source note taking app with Nextcloud/ownCloud integration.",
@@ -9388,7 +9388,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallqtox": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "qtox",
     "content": "QTox",
     "description": "QTox is a free and open-source messaging app that prioritizes user privacy and security in its design.",
@@ -9397,7 +9397,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallrevo": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "revo-uninstaller",
     "content": "Revo Uninstaller",
     "description": "Revo Uninstaller is an advanced uninstaller tool that helps you remove unwanted software and clean up your system.",
@@ -9406,7 +9406,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallWiseProgramUninstaller": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "na",
     "content": "Wise Program Uninstaller (WiseCleaner)",
     "description": "Wise Program Uninstaller is the perfect solution for uninstalling Windows programs, allowing you to uninstall applications quickly and completely using its simple and user-friendly interface.",
@@ -9415,7 +9415,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallrufus": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "rufus",
     "content": "Rufus Imager",
     "description": "Rufus is a utility that helps format and create bootable USB drives, such as USB keys or pen drives.",
@@ -9424,7 +9424,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallrustlang": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "rust",
     "content": "Rust",
     "description": "Rust is a programming language designed for safety and performance, particularly focused on systems programming.",
@@ -9433,16 +9433,16 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallsdio": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "sdio",
-    "content": "Snappy Driver تثبيتer Origin",
-    "description": "Snappy Driver تثبيتer Origin is a free and open-source driver updater with a vast driver database for Windows.",
+    "content": "Snappy Driver Installer Origin",
+    "description": "Snappy Driver Installer Origin is a free and open-source driver updater with a vast driver database for Windows.",
     "link": "https://www.glenn.delahoy.com/snappy-driver-installer-origin/",
-    "winget": "GlennDelahoy.SnappyDriverتثبيتerOrigin",
+    "winget": "GlennDelahoy.SnappyDriverInstallerOrigin",
     "foss": true
   },
   "WPFInstallsharex": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "sharex",
     "content": "ShareX (Screenshots)",
     "description": "ShareX is a free and open-source screen capture and file sharing tool. It supports various capture methods and offers advanced features for editing and sharing screenshots.",
@@ -9451,7 +9451,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallnilesoftShell": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "nilesoft-shell",
     "content": "Nilesoft Shell",
     "description": "Shell is an expanded context menu tool that adds extra functionality and customization options to the Windows context menu.",
@@ -9460,7 +9460,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallsysteminformer": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "systeminformer",
     "content": "System Informer",
     "description": "A free, powerful, multi-purpose tool that helps you monitor system resources, debug software and detect malware.",
@@ -9469,7 +9469,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallsignal": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "signal",
     "content": "Signal",
     "description": "Signal is a privacy-focused messaging app that offers end-to-end encryption for secure and private communication.",
@@ -9478,7 +9478,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallsignalrgb": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "na",
     "content": "SignalRGB",
     "description": "SignalRGB lets you control and sync your favorite RGB devices with one free application.",
@@ -9487,7 +9487,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallsimplenote": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "simplenote",
     "content": "Simplenote",
     "description": "Simplenote is an easy way to keep notes, lists, ideas and more.",
@@ -9496,7 +9496,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallsimplewall": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "simplewall",
     "content": "Simplewall",
     "description": "Simplewall is a free and open-source firewall application for Windows. It allows users to control and manage the inbound and outbound network traffic of applications.",
@@ -9505,7 +9505,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallslack": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "slack",
     "content": "Slack",
     "description": "Slack is a collaboration hub that connects teams and facilitates communication through channels, messaging, and file sharing.",
@@ -9514,16 +9514,16 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallstartallback": {
-    "category": "الأدوات المساعدة",
-    "choco": "StartالكلBack",
-    "content": "StartالكلBack",
-    "description": "StartالكلBack restores and improves Windows taskbar, Start menu, File Explorer, and shell UI behavior.",
+    "category": "Utilities",
+    "choco": "StartAllBack",
+    "content": "StartAllBack",
+    "description": "StartAllBack restores and improves Windows taskbar, Start menu, File Explorer, and shell UI behavior.",
     "link": "https://www.startallback.com/",
-    "winget": "StartIsBack.StartالكلBack",
+    "winget": "StartIsBack.StartAllBack",
     "foss": false
   },
   "WPFInstallstarship": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "starship",
     "content": "Starship (Shell Prompt)",
     "description": "Starship is a fast, customizable, cross-platform prompt for PowerShell and other shells.",
@@ -9532,7 +9532,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallsteam": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "steam-client",
     "content": "Steam",
     "description": "Steam is a digital distribution platform for purchasing and playing video games, offering multiplayer gaming, video streaming, and more.",
@@ -9541,7 +9541,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallroblox": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "na",
     "content": "Roblox",
     "description": "Roblox is a platform and game creation system that allows users to create and play games developed by the community.",
@@ -9550,7 +9550,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallsublimetext": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "sublimetext4",
     "content": "Sublime Text",
     "description": "Sublime Text is a sophisticated text editor for code, markup, and prose.",
@@ -9559,7 +9559,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallsumatra": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "sumatrapdf",
     "content": "Sumatra PDF",
     "description": "Sumatra PDF is a lightweight and fast PDF viewer with minimalistic design.",
@@ -9568,7 +9568,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallsunshine": {
-    "category": "أدوات ذاتية الاستضافة",
+    "category": "Selfhosted Tools",
     "choco": "sunshine",
     "content": "Sunshine/GameStream Server",
     "description": "Sunshine is a GameStream server that allows you to remotely play PC games on Android devices, offering low-latency streaming.",
@@ -9577,7 +9577,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalltcpview": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "tcpview",
     "content": "TCPView",
     "description": "SysInternals TCPView is a network monitoring tool that displays a detailed list of all TCP and UDP endpoints on your system.",
@@ -9586,7 +9586,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallteams": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "microsoft-teams",
     "content": "Teams",
     "description": "Microsoft Teams is a collaboration platform that integrates with Office 365 and offers chat, video conferencing, file sharing, and more.",
@@ -9595,7 +9595,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallteamviewer": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "teamviewer9",
     "content": "TeamViewer",
     "description": "TeamViewer is a popular remote access and support software that allows you to connect to and control remote devices.",
@@ -9604,7 +9604,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallteamspeak3": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "teamspeak",
     "content": "TeamSpeak 3",
     "description": "TEAMSPEAK. YOUR TEAM. YOUR RULES. Use crystal clear sound to communicate with your teammates cross-platform with military-grade security, lag-free performance & unparalleled reliability and uptime.",
@@ -9613,7 +9613,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallteamspeak6": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "na",
     "content": "TeamSpeak 6",
     "description": "TEAMSPEAK. YOUR TEAM. YOUR RULES. Use crystal clear sound to communicate with your teammates cross-platform with military-grade security, lag-free performance & unparalleled reliability and uptime.",
@@ -9622,7 +9622,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstalltelegram": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "telegram",
     "content": "Telegram",
     "description": "Telegram is a cloud-based instant messaging app known for its security features, speed, and simplicity.",
@@ -9631,7 +9631,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallterminal": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "microsoft-windows-terminal",
     "content": "Windows Terminal",
     "description": "Windows Terminal is a modern, fast, and efficient terminal application for command-line users, supporting multiple tabs, panes, and more.",
@@ -9640,7 +9640,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallthunderbird": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "thunderbird",
     "content": "Thunderbird",
     "description": "Mozilla Thunderbird is a free and open-source email client, news client, and chat client with advanced features.",
@@ -9649,7 +9649,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallbetterbird": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "betterbird",
     "content": "Betterbird",
     "description": "Betterbird is a fork of Mozilla Thunderbird with additional features and bugfixes.",
@@ -9658,16 +9658,16 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalltor": {
-    "category": "المتصفحات",
+    "category": "Browsers",
     "choco": "tor-browser",
-    "content": "Tor استعراضr",
-    "description": "Tor استعراضr is designed for anonymous web browsing, utilizing the Tor network to protect user privacy and security.",
+    "content": "Tor Browser",
+    "description": "Tor Browser is designed for anonymous web browsing, utilizing the Tor network to protect user privacy and security.",
     "link": "https://www.torproject.org/",
-    "winget": "TorProject.Torاستعراضr",
+    "winget": "TorProject.TorBrowser",
     "foss": true
   },
   "WPFInstalltotalcommander": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "TotalCommander",
     "content": "Total Commander",
     "description": "Total Commander is a file manager for Windows that provides a powerful and intuitive interface for file management.",
@@ -9676,7 +9676,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstalltreesize": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "treesizefree",
     "content": "TreeSize Free",
     "description": "TreeSize Free is a disk space manager that helps you analyze and visualize the space usage on your drives.",
@@ -9685,7 +9685,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallttaskbar": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "translucenttb",
     "content": "TranslucentTB",
     "description": "TranslucentTB is a tool that allows you to customize the transparency of the Windows Taskbar.",
@@ -9694,7 +9694,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallubisoft": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "ubisoft-connect",
     "content": "Ubisoft Connect",
     "description": "Ubisoft Connect is Ubisoft's digital distribution and online gaming service, providing access to Ubisoft's games and services.",
@@ -9703,7 +9703,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallungoogled": {
-    "category": "المتصفحات",
+    "category": "Browsers",
     "choco": "ungoogled-chromium",
     "content": "Ungoogled Chromium",
     "description": "Ungoogled Chromium is a version of Chromium without Google's integration for enhanced privacy and control.",
@@ -9712,7 +9712,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallunity": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "unityhub",
     "content": "Unity Game Engine",
     "description": "Unity is a powerful game development platform for creating 2D, 3D, augmented reality, and virtual reality games.",
@@ -9721,7 +9721,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallvagrant": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "vagrant",
     "content": "Vagrant",
     "description": "Vagrant builds and manages reproducible virtual machine development environments from declarative configuration.",
@@ -9730,7 +9730,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstalleverything": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "everything",
     "content": "Everything",
     "description": "Everything is a search engine that locates files and folders by filename instantly for Windows. Unlike Windows search Everything initially displays every file and folder on your computer (hence the name Everything). You type in a search filter to limit what files and folders are displayed.",
@@ -9739,7 +9739,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallvc2015_32": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "vcredist2015",
     "content": "Visual C++ 2015-2022 32-bit",
     "description": "Visual C++ 2015-2022 32-bit redistributable package installs runtime components of Visual C++ libraries required to run 32-bit applications.",
@@ -9748,7 +9748,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallvc2015_64": {
-    "category": "أدوات مايكروسوفت",
+    "category": "Microsoft Tools",
     "choco": "vcredist2015",
     "content": "Visual C++ 2015-2022 64-bit",
     "description": "Visual C++ 2015-2022 64-bit redistributable package installs runtime components of Visual C++ libraries required to run 64-bit applications.",
@@ -9757,7 +9757,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallventoy": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "ventoy",
     "content": "Ventoy",
     "description": "Ventoy is an open-source tool for creating bootable USB drives. It supports multiple ISO files on a single USB drive, making it a versatile solution for installing operating systems.",
@@ -9766,7 +9766,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallvesktop": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "na",
     "content": "Vesktop",
     "description": "A cross platform electron-based desktop app aiming to give you a snappier Discord experience with Vencord pre-installed.",
@@ -9775,7 +9775,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallviber": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "viber",
     "content": "Viber",
     "description": "Viber is a free messaging and calling app with features like group chats, video calls, and more.",
@@ -9784,7 +9784,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallvisualstudio2022": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "visualstudio2022community",
     "content": "Visual Studio 2022",
     "description": "Visual Studio 2022 is an integrated development environment (IDE) for building, debugging, and deploying applications.",
@@ -9793,7 +9793,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallvisualstudio2026": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "visualstudio2026community",
     "content": "Visual Studio 2026",
     "description": "Visual Studio 2026 is an integrated development environment (IDE) for building, debugging, and deploying applications.",
@@ -9802,7 +9802,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallvivaldi": {
-    "category": "المتصفحات",
+    "category": "Browsers",
     "choco": "vivaldi",
     "content": "Vivaldi",
     "description": "Vivaldi is a highly customizable web browser with a focus on user personalization and productivity features.",
@@ -9811,7 +9811,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallvlc": {
-    "category": "أدوات الوسائط",
+    "category": "Multimedia Tools",
     "choco": "vlc",
     "content": "VLC (Video Player)",
     "description": "VLC Media Player is a free and open-source multimedia player that supports a wide range of audio and video formats. It is known for its versatility and cross-platform compatibility.",
@@ -9820,7 +9820,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallvrdesktopstreamer": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "na",
     "content": "Virtual Desktop Streamer",
     "description": "Virtual Desktop Streamer is a tool that allows you to stream your desktop screen to VR devices.",
@@ -9829,7 +9829,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallvscode": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "vscode",
     "content": "VS Code",
     "description": "Visual Studio Code is a free, open-source code editor with support for multiple programming languages.",
@@ -9838,7 +9838,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallvscodium": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "vscodium",
     "content": "VS Codium",
     "description": "VSCodium is a community-driven, freely-licensed binary distribution of Microsoft's VS Code.",
@@ -9847,7 +9847,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallwaterfox": {
-    "category": "المتصفحات",
+    "category": "Browsers",
     "choco": "waterfox",
     "content": "Waterfox",
     "description": "Waterfox is a fast, privacy-focused web browser based on Firefox, designed to preserve user choice and privacy.",
@@ -9856,7 +9856,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallwhatsapp": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "na",
     "content": "WhatsApp Desktop",
     "description": "WhatsApp Desktop is the official Windows desktop messaging app from Meta, distributed through the Microsoft Store.",
@@ -9865,7 +9865,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallwingetui": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "wingetui",
     "content": "UniGetUI",
     "description": "UniGetUI is a GUI for WinGet, Chocolatey, and other Windows CLI package managers.",
@@ -9874,7 +9874,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallwinrar": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "winrar",
     "content": "WinRAR",
     "description": "WinRAR is a powerful archive manager that allows you to create, manage, and extract compressed files.",
@@ -9883,7 +9883,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallwinscp": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "winscp",
     "content": "WinSCP",
     "description": "WinSCP is a popular open-source SFTP, FTP, and SCP client for Windows. It allows secure file transfers between a local and a remote computer.",
@@ -9892,7 +9892,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallwireguard": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "wireguard",
     "content": "WireGuard",
     "description": "WireGuard is a fast and modern VPN (Virtual Private Network) protocol. It aims to be simpler and more efficient than other VPN protocols, providing secure and reliable connections.",
@@ -9901,7 +9901,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallwireshark": {
-    "category": "أدوات احترافية",
+    "category": "Pro Tools",
     "choco": "wireshark",
     "content": "Wireshark",
     "description": "Wireshark is a widely-used open-source network protocol analyzer. It allows users to capture and analyze network traffic in real-time, providing detailed insights into network activities.",
@@ -9910,7 +9910,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallwiztree": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "wiztree",
     "content": "WizTree",
     "description": "WizTree is a fast disk space analyzer that helps you quickly find the files and folders consuming the most space on your hard drive.",
@@ -9919,7 +9919,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallxeheditor": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "HxD",
     "content": "HxD Hex Editor",
     "description": "HxD is a free hex editor that allows you to edit, view, search, and analyze binary files.",
@@ -9928,7 +9928,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallxournal": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "xournalplusplus",
     "content": "Xournal++",
     "description": "Xournal++ is an open-source handwriting notetaking software with PDF annotation capabilities.",
@@ -9937,7 +9937,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallyarn": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "yarn",
     "content": "Yarn",
     "description": "Yarn is a fast, reliable, and secure dependency management tool for JavaScript projects.",
@@ -9946,7 +9946,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallzoom": {
-    "category": "التواصل",
+    "category": "Communications",
     "choco": "zoom",
     "content": "Zoom",
     "description": "Zoom is a popular video conferencing and web conferencing service for online meetings, webinars, and collaborative projects.",
@@ -9955,7 +9955,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstalluv": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "uv",
     "content": "uv",
     "description": "uv is a fast Python package and project manager written in Rust.",
@@ -9964,7 +9964,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalltightvnc": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "TightVNC",
     "content": "TightVNC",
     "description": "TightVNC is a free and open-source remote desktop software that lets you access and control a computer over the network. With its intuitive interface, you can interact with the remote screen as if you were sitting in front of it. You can open files, launch applications, and perform other actions on the remote desktop almost as if you were physically there.",
@@ -9973,7 +9973,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallglazewm": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "glazewm",
     "content": "GlazeWM",
     "description": "GlazeWM is a tiling window manager for Windows inspired by i3 and Polybar.",
@@ -9982,7 +9982,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallOverwolf": {
-    "category": "الألعاب",
+    "category": "Games",
     "choco": "overwolf",
     "content": "Overwolf",
     "description": "Popular platform for game overlays and companion apps (mod managers, trackers, etc.), widely used by gamers.",
@@ -9991,7 +9991,7 @@ $sync.configs.applications = @'
     "foss": false
   },
   "WPFInstallOFGB": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "ofgb",
     "content": "OFGB (Oh Frick Go Back)",
     "description": "GUI Tool to remove ads from various places around Windows 11",
@@ -9999,17 +9999,17 @@ $sync.configs.applications = @'
     "winget": "xM4ddy.OFGB",
     "foss": true
   },
-  "WPFInstallZenاستعراضr": {
-    "category": "المتصفحات",
+  "WPFInstallZenBrowser": {
+    "category": "Browsers",
     "choco": "zen-browser",
-    "content": "Zen استعراضr",
+    "content": "Zen Browser",
     "description": "The modern, privacy-focused, performance-driven browser built on Firefox.",
     "link": "https://zen-browser.app/",
-    "winget": "Zen-Team.Zen-استعراضr",
+    "winget": "Zen-Team.Zen-Browser",
     "foss": true
   },
   "WPFInstallZed": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "zed",
     "content": "Zed",
     "description": "Zed is a modern, high-performance code editor designed from the ground up for speed and collaboration.",
@@ -10018,7 +10018,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallzotero": {
-    "category": "المستندات",
+    "category": "Document",
     "choco": "zotero",
     "content": "Zotero",
     "description": "Zotero is a free, easy-to-use tool to help you collect, organize, cite, and share your research materials.",
@@ -10027,7 +10027,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstalldeskflow": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "deskflow",
     "content": "Deskflow",
     "description": "Deskflow is a free and open-source software KVM that lets you share a single keyboard and mouse across multiple computers.",
@@ -10036,16 +10036,16 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallRuby": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "ruby",
-    "winget": "RubyتثبيتerTeam.Ruby.4.0",
+    "winget": "RubyInstallerTeam.Ruby.4.0",
     "description": "A Ruby language execution environment with a MSYS2 installation.",
     "content": "Ruby",
     "link": "https://rubyinstaller.org/",
     "foss": true
   },
   "WPFInstallLua": {
-    "category": "التطوير",
+    "category": "Development",
     "choco": "lua",
     "winget": "rjpcomputing.luaforwindows",
     "description": "A 'batteries included environment' for the Lua scripting language on Windows.",
@@ -10054,7 +10054,7 @@ $sync.configs.applications = @'
     "foss": true
   },
   "WPFInstallCloudflareWARP": {
-    "category": "الأدوات المساعدة",
+    "category": "Utilities",
     "choco": "warp",
     "winget": "Cloudflare.Warp",
     "description": "WARP is a freemium VPN service provided by Cloudflare. Includes usage of Cloudflare's DNS",
@@ -10067,11 +10067,11 @@ $sync.configs.applications = @'
 $sync.configs.appnavigation = @'
 {
   "WPFInstall": {
-    "Content": "تثبيت/Upgrade Applications",
+    "Content": "Install/Upgrade Applications",
     "Category": "____Actions",
     "Type": "Button",
     "Order": "1",
-    "Description": "تثبيت or upgrade the selected applications"
+    "Description": "Install or upgrade the selected applications"
   },
   "WPFUninstall": {
     "Content": "Uninstall Applications",
@@ -10105,29 +10105,29 @@ $sync.configs.appnavigation = @'
     "Order": "2",
     "Description": "Use Chocolatey for package management"
   },
-  "WPFCollapseالكلCategories": {
-    "Content": "Collapse الكل Categories",
+  "WPFCollapseAllCategories": {
+    "Content": "Collapse All Categories",
     "Category": "__Selection",
     "Type": "Button",
     "Order": "1",
     "Description": "Collapse all application categories"
   },
-  "WPFExpandالكلCategories": {
-    "Content": "Expand الكل Categories",
+  "WPFExpandAllCategories": {
+    "Content": "Expand All Categories",
     "Category": "__Selection",
     "Type": "Button",
     "Order": "2",
     "Description": "Expand all application categories"
   },
-  "WPFClearتثبيتSelection": {
+  "WPFClearInstallSelection": {
     "Content": "Clear Selection",
     "Category": "__Selection",
     "Type": "Button",
     "Order": "3",
     "Description": "Clear the selection of applications"
   },
-  "WPFGetتثبيتed": {
-    "Content": "Show تثبيتed Apps",
+  "WPFGetInstalled": {
+    "Content": "Show Installed Apps",
     "Category": "__Selection",
     "Type": "Button",
     "Order": "4",
@@ -10154,7 +10154,7 @@ $sync.configs.appx = @'
   "WPFAppxMicrosoft_WindowsFeedbackHub": {
     "Category": "Microsoft Apps",
     "Content": "Feedback Hub",
-    "Description": "الكلows users to submit bug reports, feature suggestions, and diagnostic data directly to Microsoft.",
+    "Description": "Allows users to submit bug reports, feature suggestions, and diagnostic data directly to Microsoft.",
     "Panel": "0",
     "PackageId": "Microsoft.WindowsFeedbackHub",
     "StoreId": "9NBLGGH4R32N"
@@ -10184,7 +10184,7 @@ $sync.configs.appx = @'
     "StoreId": "XP8BT8DW290MPQ"
   },
   "WPFAppxClipchamp_Clipchamp": {
-    "Category": "الأدوات المساعدة & Productivity",
+    "Category": "Utilities & Productivity",
     "Content": "Clipchamp",
     "Description": "Provides a user-friendly video editor with built-in templates, effects, and timeline editing tools.",
     "Panel": "0",
@@ -10200,7 +10200,7 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRD29V9"
   },
   "WPFAppxMicrosoft_ZuneMusic": {
-    "Category": "الأدوات المساعدة & Productivity",
+    "Category": "Utilities & Productivity",
     "Content": "Media Player",
     "Description": "Plays local audio and video files with modern playlist management and casting capabilities.",
     "Panel": "0",
@@ -10216,7 +10216,7 @@ $sync.configs.appx = @'
     "StoreId": "9NZBF4GT040C"
   },
   "WPFAppxMicrosoftCorporationII_QuickAssist": {
-    "Category": "الأدوات المساعدة & Productivity",
+    "Category": "Utilities & Productivity",
     "Content": "Quick Assist",
     "Description": "Enables secure remote technical support and screen sharing over an internet connection.",
     "Panel": "0",
@@ -10234,13 +10234,13 @@ $sync.configs.appx = @'
   "WPFAppxMicrosoft_WindowsCrossDevice": {
     "Category": "Microsoft Ecosystem",
     "Content": "Mobile Devices",
-    "Description": "Manages system-level background connectivity with paired mobile devices. جارٍ الإزالة: this may disable cross-device features such as phone screen mirroring, file transfer, and mobile hotspot handoff integrated into Windows الإعدادات.",
+    "Description": "Manages system-level background connectivity with paired mobile devices. Removing this may disable cross-device features such as phone screen mirroring, file transfer, and mobile hotspot handoff integrated into Windows Settings.",
     "Panel": "0",
     "PackageId": "MicrosoftWindows.CrossDevice",
     "StoreId": "9NTXGKQ8P7N0"
   },
   "WPFAppxMicrosoft_Todos": {
-    "Category": "الأدوات المساعدة & Productivity",
+    "Category": "Utilities & Productivity",
     "Content": "To Do",
     "Description": "Creates, tracks, and synchronizes personal tasks, smart lists, and daily reminders.",
     "Panel": "0",
@@ -10264,7 +10264,7 @@ $sync.configs.appx = @'
     "StoreId": "9NMPJ99VJBWV"
   },
   "WPFAppxMicrosoft_MicrosoftStickyNotes": {
-    "Category": "الأدوات المساعدة & Productivity",
+    "Category": "Utilities & Productivity",
     "Content": "Sticky Notes",
     "Description": "Creates quick, floating text notes on the desktop that automatically sync across devices.",
     "Panel": "0",
@@ -10272,7 +10272,7 @@ $sync.configs.appx = @'
     "StoreId": "9NBLGGH4QGHW"
   },
   "WPFAppxMicrosoft_WindowsSoundRecorder": {
-    "Category": "الأدوات المساعدة & Productivity",
+    "Category": "Utilities & Productivity",
     "Content": "Sound Recorder",
     "Description": "Records and trims live audio inputs with simple microphone adjustment controls.",
     "Panel": "0",
@@ -10280,7 +10280,7 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRFHWKN"
   },
   "WPFAppxMicrosoft_WindowsAlarms": {
-    "Category": "الأدوات المساعدة & Productivity",
+    "Category": "Utilities & Productivity",
     "Content": "Clock",
     "Description": "Features world clocks, alarms, countdown timers, stopwatches, and dedicated focus session tracking.",
     "Panel": "0",
@@ -10288,7 +10288,7 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRFJ3PR"
   },
   "WPFAppxMicrosoft_Paint": {
-    "Category": "الأدوات المساعدة & Productivity",
+    "Category": "Utilities & Productivity",
     "Content": "Paint",
     "Description": "Provides built-in digital sketching, basic image editing, and pixel-level graphic manipulation tools.",
     "Panel": "0",
@@ -10296,7 +10296,7 @@ $sync.configs.appx = @'
     "StoreId": "9PCFS5B6T72H"
   },
   "WPFAppxMicrosoft_WindowsNotepad": {
-    "Category": "الأدوات المساعدة & Productivity",
+    "Category": "Utilities & Productivity",
     "Content": "Notepad",
     "Description": "Provides a lightweight text editor with multi-tab support for plain text files and code snippets.",
     "Panel": "0",
@@ -10304,7 +10304,7 @@ $sync.configs.appx = @'
     "StoreId": "9MSMLRH6LZF3"
   },
   "WPFAppxMicrosoft_ScreenSketch": {
-    "Category": "الأدوات المساعدة & Productivity",
+    "Category": "Utilities & Productivity",
     "Content": "Snipping Tool",
     "Description": "Captures screenshots or screen recordings with built-in markup, image cropping, and optical character recognition (OCR).",
     "Panel": "0",
@@ -10320,7 +10320,7 @@ $sync.configs.appx = @'
     "StoreId": "9NHT9RB2F4HD"
   },
   "WPFAppxMicrosoft_WindowsCalculator": {
-    "Category": "الأدوات المساعدة & Productivity",
+    "Category": "Utilities & Productivity",
     "Content": "Calculator",
     "Description": "Performs standard arithmetic, scientific operations, programming calculations, and unit conversions.",
     "Panel": "0",
@@ -10328,7 +10328,7 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRFHVN5"
   },
   "WPFAppxMicrosoft_WindowsCamera": {
-    "Category": "الأدوات المساعدة & Productivity",
+    "Category": "Utilities & Productivity",
     "Content": "Camera",
     "Description": "Captures photographs and records video files via connected webcams or imaging hardware.",
     "Panel": "0",
@@ -10336,7 +10336,7 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRFJBBG"
   },
   "WPFAppxMicrosoft_WindowsPhotos": {
-    "Category": "الأدوات المساعدة & Productivity",
+    "Category": "Utilities & Productivity",
     "Content": "Photos",
     "Description": "Organizes, views, and crops local images with basic color adjustment and album creation tools.",
     "Panel": "0",
@@ -10558,7 +10558,7 @@ $sync.configs.feature = @'
     "category": "Features",
     "panel": "1",
     "feature": [
-      "Microsoft-Hyper-V-الكل"
+      "Microsoft-Hyper-V-All"
     ],
     "link": "https://winutil.christitus.com/code-reference/features/features/hyperv"
   },
@@ -10614,13 +10614,13 @@ $sync.configs.feature = @'
     "panel": "1",
     "feature": [],
     "InvokeScript": [
-      "\r\n      New-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\الإعدادuration Manager' -Name 'EnablePeriodicBackup' -Type DWord -Value 1 -Force\r\n      New-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\الإعدادuration Manager' -Name 'BackupCount' -Type DWord -Value 2 -Force\r\n      $action = New-ScheduledTaskAction -Execute 'schtasks' -Argument '/run /i /tn \"\\Microsoft\\Windows\\Registry\\RegIdleBackup\"'\r\n      $trigger = New-ScheduledTaskTrigger -Daily -At 00:30\r\n      Register-ScheduledTask -Action $action -Trigger $trigger -TaskName 'AutoRegBackup' -Description 'Create System Registry Backups' -User 'System'\r\n      "
+      "\r\n      New-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Configuration Manager' -Name 'EnablePeriodicBackup' -Type DWord -Value 1 -Force\r\n      New-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Configuration Manager' -Name 'BackupCount' -Type DWord -Value 2 -Force\r\n      $action = New-ScheduledTaskAction -Execute 'schtasks' -Argument '/run /i /tn \"\\Microsoft\\Windows\\Registry\\RegIdleBackup\"'\r\n      $trigger = New-ScheduledTaskTrigger -Daily -At 00:30\r\n      Register-ScheduledTask -Action $action -Trigger $trigger -TaskName 'AutoRegBackup' -Description 'Create System Registry Backups' -User 'System'\r\n      "
     ],
     "link": "https://winutil.christitus.com/code-reference/features/features/regbackup"
   },
   "WPFFeatureEnableLegacyRecovery": {
     "Content": "Legacy F8 Boot Recovery - Enable",
-    "Description": "Enables متقدم Boot Options screen that lets you start Windows in advanced troubleshooting modes.",
+    "Description": "Enables Advanced Boot Options screen that lets you start Windows in advanced troubleshooting modes.",
     "category": "Features",
     "panel": "1",
     "feature": [],
@@ -10631,7 +10631,7 @@ $sync.configs.feature = @'
   },
   "WPFFeatureDisableLegacyRecovery": {
     "Content": "Legacy F8 Boot Recovery - Disable",
-    "Description": "Disables متقدم Boot Options screen that lets you start Windows in advanced troubleshooting modes.",
+    "Description": "Disables Advanced Boot Options screen that lets you start Windows in advanced troubleshooting modes.",
     "category": "Features",
     "panel": "1",
     "feature": [],
@@ -10650,13 +10650,13 @@ $sync.configs.feature = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/features/features/sandbox"
   },
-  "WPFFeatureتثبيت": {
-    "Content": "تثبيت Features",
+  "WPFFeatureInstall": {
+    "Content": "Install Features",
     "category": "Features",
     "panel": "1",
     "Type": "Button",
     "ButtonWidth": "300",
-    "function": "Invoke-WPFFeatureتثبيت",
+    "function": "Invoke-WPFFeatureInstall",
     "link": "https://winutil.christitus.com/code-reference/features/features/install"
   },
   "WPFPanelAutologin": {
@@ -10669,7 +10669,7 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/fixes/autologin"
   },
   "WPFFixesUpdate": {
-    "Content": "Windows Update - إعادة ضبط",
+    "Content": "Windows Update - Reset",
     "category": "Fixes",
     "panel": "1",
     "Type": "Button",
@@ -10678,7 +10678,7 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/fixes/update"
   },
   "WPFFixesNetwork": {
-    "Content": "Network - إعادة ضبط",
+    "Content": "Network - Reset",
     "category": "Fixes",
     "panel": "1",
     "Type": "Button",
@@ -10804,7 +10804,7 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/legacy-windows-panels/security"
   },
   "WPFPanelSound": {
-    "Content": "Sound الإعدادات",
+    "Content": "Sound Settings",
     "category": "Legacy Windows Panels",
     "panel": "2",
     "Type": "Button",
@@ -10858,13 +10858,13 @@ $sync.configs.feature = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/features/legacy-windows-panels/restore"
   },
-  "WPFWinUtilتثبيتPSProfile": {
-    "Content": "CTT PowerShell Profile - تثبيت",
+  "WPFWinUtilInstallPSProfile": {
+    "Content": "CTT PowerShell Profile - Install",
     "category": "Powershell Profile Powershell 7+ Only",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
-    "function": "Invoke-WinUtilتثبيتPSProfile",
+    "function": "Invoke-WinUtilInstallPSProfile",
     "link": "https://winutil.christitus.com/code-reference/features/powershell-profile-powershell-7--only/installpsprofile"
   },
   "WPFWinUtilUninstallPSProfile": {
@@ -10890,43 +10890,43 @@ $sync.configs.feature = @'
 $sync.configs.preset = @'
 {
   "Standard": [
-    "WPFالتعديلاتActivity",
-    "WPFالتعديلاتConsumerFeatures",
-    "WPFالتعديلاتDisableExplorerAutoDiscovery",
-    "WPFالتعديلاتWPBT",
-    "WPFالتعديلاتLocation",
-    "WPFالتعديلاتServices",
-    "WPFالتعديلاتTelemetry",
-    "WPFالتعديلاتDeliveryOptimization",
-    "WPFالتعديلاتDiskCleanup",
-    "WPFالتعديلاتDeleteTempFiles",
-    "WPFالتعديلاتEndTaskOnTaskbar",
-    "WPFالتعديلاتRestorePoint"
+    "WPFTweaksActivity",
+    "WPFTweaksConsumerFeatures",
+    "WPFTweaksDisableExplorerAutoDiscovery",
+    "WPFTweaksWPBT",
+    "WPFTweaksLocation",
+    "WPFTweaksServices",
+    "WPFTweaksTelemetry",
+    "WPFTweaksDeliveryOptimization",
+    "WPFTweaksDiskCleanup",
+    "WPFTweaksDeleteTempFiles",
+    "WPFTweaksEndTaskOnTaskbar",
+    "WPFTweaksRestorePoint"
   ],
   "Minimal": [
-    "WPFالتعديلاتConsumerFeatures",
-    "WPFالتعديلاتWPBT",
-    "WPFالتعديلاتServices",
-    "WPFالتعديلاتTelemetry"
+    "WPFTweaksConsumerFeatures",
+    "WPFTweaksWPBT",
+    "WPFTweaksServices",
+    "WPFTweaksTelemetry"
   ],
   "Advanced": [
-    "WPFالتعديلاتRestorePoint",
-    "WPFالتعديلاتActivity",
-    "WPFالتعديلاتConsumerFeatures",
-    "WPFالتعديلاتDisableExplorerAutoDiscovery",
-    "WPFالتعديلاتWPBT",
-    "WPFالتعديلاتLocation",
-    "WPFالتعديلاتServices",
-    "WPFالتعديلاتTelemetry",
-    "WPFالتعديلاتDeliveryOptimization",
-    "WPFالتعديلاتDeleteTempFiles",
-    "WPFالتعديلاتEndTaskOnTaskbar",
-    "WPFالتعديلاتDisableStoreSearch",
-    "WPFالتعديلاتRevertStartMenu",
-    "WPFالتعديلاتWidget",
-    "WPFالتعديلاتRemoveOneDrive",
-    "WPFالتعديلاتWindowsAI",
-    "WPFالتعديلاتRightClickMenu"
+    "WPFTweaksRestorePoint",
+    "WPFTweaksActivity",
+    "WPFTweaksConsumerFeatures",
+    "WPFTweaksDisableExplorerAutoDiscovery",
+    "WPFTweaksWPBT",
+    "WPFTweaksLocation",
+    "WPFTweaksServices",
+    "WPFTweaksTelemetry",
+    "WPFTweaksDeliveryOptimization",
+    "WPFTweaksDeleteTempFiles",
+    "WPFTweaksEndTaskOnTaskbar",
+    "WPFTweaksDisableStoreSearch",
+    "WPFTweaksRevertStartMenu",
+    "WPFTweaksWidget",
+    "WPFTweaksRemoveOneDrive",
+    "WPFTweaksWindowsAI",
+    "WPFTweaksRightClickMenu"
   ],
   "AppxDefault": [
     "WPFAppxMicrosoft_WindowsFeedbackHub",
@@ -10977,15 +10977,15 @@ $sync.configs.themes = @'
     "ToolTipWidth": "300",
     "IconFontSize": "14",
     "IconButtonSize": "35",
-    "الإعداداتIconFontSize": "18",
-    "إغلاقIconFontSize": "12",
+    "SettingsIconFontSize": "18",
+    "CloseIconFontSize": "12",
     "GroupBorderBackgroundColor": "#232629",
     "ButtonFontSize": "12",
     "ButtonFontFamily": "Arial",
     "ButtonWidth": "200",
     "ButtonHeight": "25",
-    "الإعدادTabButtonFontSize": "14",
-    "الإعدادUpdateButtonFontSize": "14",
+    "ConfigTabButtonFontSize": "14",
+    "ConfigUpdateButtonFontSize": "14",
     "SearchBarWidth": "200",
     "SearchBarHeight": "26",
     "SearchBarTextBoxFontSize": "12",
@@ -10996,9 +10996,9 @@ $sync.configs.themes = @'
     "ButtonCornerRadius": "2"
   },
   "Light": {
-    "AppتثبيتUnselectedColor": "#F7F7F7",
-    "AppتثبيتHighlightedColor": "#CFCFCF",
-    "AppتثبيتSelectedColor": "#C2C2C2",
+    "AppInstallUnselectedColor": "#F7F7F7",
+    "AppInstallHighlightedColor": "#CFCFCF",
+    "AppInstallSelectedColor": "#C2C2C2",
     "ComboBoxForegroundColor": "#232629",
     "ComboBoxBackgroundColor": "#F7F7F7",
     "LabelboxForegroundColor": "#232629",
@@ -11012,16 +11012,16 @@ $sync.configs.themes = @'
     "ScrollBarDraggingColor": "#6A6D72",
     "ProgressBarForegroundColor": "#2E77FF",
     "ProgressBarBackgroundColor": "Transparent",
-    "ButtonتثبيتBackgroundColor": "#F7F7F7",
-    "ButtonالتعديلاتBackgroundColor": "#F7F7F7",
-    "ButtonالإعدادBackgroundColor": "#F7F7F7",
-    "ButtonالتحديثاتBackgroundColor": "#F7F7F7",
+    "ButtonInstallBackgroundColor": "#F7F7F7",
+    "ButtonTweaksBackgroundColor": "#F7F7F7",
+    "ButtonConfigBackgroundColor": "#F7F7F7",
+    "ButtonUpdatesBackgroundColor": "#F7F7F7",
     "ButtonWin11ISOBackgroundColor": "#F7F7F7",
     "ButtonAppxBackgroundColor": "#F7F7F7",
-    "ButtonتثبيتForegroundColor": "#232629",
-    "ButtonالتعديلاتForegroundColor": "#232629",
-    "ButtonالإعدادForegroundColor": "#232629",
-    "ButtonالتحديثاتForegroundColor": "#232629",
+    "ButtonInstallForegroundColor": "#232629",
+    "ButtonTweaksForegroundColor": "#232629",
+    "ButtonConfigForegroundColor": "#232629",
+    "ButtonUpdatesForegroundColor": "#232629",
     "ButtonWin11ISOForegroundColor": "#232629",
     "ButtonAppxForegroundColor": "#232629",
     "ButtonBackgroundColor": "#F5F5F5",
@@ -11036,9 +11036,9 @@ $sync.configs.themes = @'
     "BorderOpacity": "0.2"
   },
   "Dark": {
-    "AppتثبيتUnselectedColor": "#232629",
-    "AppتثبيتHighlightedColor": "#3C3C3C",
-    "AppتثبيتSelectedColor": "#4C4C4C",
+    "AppInstallUnselectedColor": "#232629",
+    "AppInstallHighlightedColor": "#3C3C3C",
+    "AppInstallSelectedColor": "#4C4C4C",
     "ComboBoxForegroundColor": "#F7F7F7",
     "ComboBoxBackgroundColor": "#1E3747",
     "LabelboxForegroundColor": "#5BDCFF",
@@ -11052,16 +11052,16 @@ $sync.configs.themes = @'
     "ScrollBarDraggingColor": "#5E81AC",
     "ProgressBarForegroundColor": "#6EFF72",
     "ProgressBarBackgroundColor": "Transparent",
-    "ButtonتثبيتBackgroundColor": "#222222",
-    "ButtonالتعديلاتBackgroundColor": "#333333",
-    "ButtonالإعدادBackgroundColor": "#444444",
-    "ButtonالتحديثاتBackgroundColor": "#555555",
+    "ButtonInstallBackgroundColor": "#222222",
+    "ButtonTweaksBackgroundColor": "#333333",
+    "ButtonConfigBackgroundColor": "#444444",
+    "ButtonUpdatesBackgroundColor": "#555555",
     "ButtonWin11ISOBackgroundColor": "#666666",
     "ButtonAppxBackgroundColor": "#777777",
-    "ButtonتثبيتForegroundColor": "#F7F7F7",
-    "ButtonالتعديلاتForegroundColor": "#F7F7F7",
-    "ButtonالإعدادForegroundColor": "#F7F7F7",
-    "ButtonالتحديثاتForegroundColor": "#F7F7F7",
+    "ButtonInstallForegroundColor": "#F7F7F7",
+    "ButtonTweaksForegroundColor": "#F7F7F7",
+    "ButtonConfigForegroundColor": "#F7F7F7",
+    "ButtonUpdatesForegroundColor": "#F7F7F7",
     "ButtonWin11ISOForegroundColor": "#F7F7F7",
     "ButtonAppxForegroundColor": "#F7F7F7",
     "ButtonBackgroundColor": "#1E3747",
@@ -11079,10 +11079,10 @@ $sync.configs.themes = @'
 '@ | ConvertFrom-Json
 $sync.configs.tweaks = @'
 {
-  "WPFالتعديلاتActivity": {
+  "WPFTweaksActivity": {
     "Content": "Activity History - Disable",
     "Description": "Erases recent docs, clipboard, and run history.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "registry": [
       {
@@ -11109,10 +11109,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/activity"
   },
-  "WPFالتعديلاتHiber": {
+  "WPFTweaksHiber": {
     "Content": "Hibernation - Disable",
     "Description": "Hibernation is really meant for laptops as it saves what's in memory before turning the PC off. It really should never be used.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "registry": [
       {
@@ -11123,7 +11123,7 @@ $sync.configs.tweaks = @'
         "OriginalValue": "1"
       },
       {
-        "Path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FlyoutMenuالإعدادات",
+        "Path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FlyoutMenuSettings",
         "Name": "ShowHibernateOption",
         "Value": "0",
         "Type": "DWord",
@@ -11138,20 +11138,20 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/hiber"
   },
-  "WPFالتعديلاتWidget": {
+  "WPFTweaksWidget": {
     "Content": "Widgets - Remove",
     "Description": "Removes the annoying widgets in the bottom left of the Taskbar.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "InvokeScript": [
-      "\r\n      # Sometimes if you dont stop the Widgets process the removal may fail\r\n\r\n      Get-Process *Widget* | Stop-Process\r\n      Get-AppxPackage Microsoft.WidgetsPlatformRuntime -الكلUsers | Remove-AppxPackage -الكلUsers\r\n      Get-AppxPackage MicrosoftWindows.Client.WebExperience -الكلUsers | Remove-AppxPackage -الكلUsers\r\n\r\n      Invoke-WinUtilExplorerUpdate -action \"restart\"\r\n      Write-Host \"Removed widgets\"\r\n      "
+      "\r\n      # Sometimes if you dont stop the Widgets process the removal may fail\r\n\r\n      Get-Process *Widget* | Stop-Process\r\n      Get-AppxPackage Microsoft.WidgetsPlatformRuntime -AllUsers | Remove-AppxPackage -AllUsers\r\n      Get-AppxPackage MicrosoftWindows.Client.WebExperience -AllUsers | Remove-AppxPackage -AllUsers\r\n\r\n      Invoke-WinUtilExplorerUpdate -action \"restart\"\r\n      Write-Host \"Removed widgets\"\r\n      "
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/widget"
   },
-  "WPFالتعديلاتRevertStartMenu": {
+  "WPFTweaksRevertStartMenu": {
     "Content": "Start Menu Previous Layout - Enable",
     "Description": "Bring back the old Start Menu layout from before the gradual rollout of the new one in 25H2. On newer versions of Windows !!THIS TWEAK WILL NOT WORK!!",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "registry": [
       {
@@ -11164,10 +11164,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/revertstartmenu"
   },
-  "WPFالتعديلاتDisableStoreSearch": {
-    "Content": "Microsoft Store موصى به Search Results - Disable",
+  "WPFTweaksDisableStoreSearch": {
+    "Content": "Microsoft Store Recommended Search Results - Disable",
     "Description": "Will not display recommended Microsoft Store apps when searching for apps in the Start menu.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "InvokeScript": [
       "icacls \"$Env:LocalAppData\\Packages\\Microsoft.WindowsStore_8wekyb3d8bbwe\\LocalState\\store.db\" /deny Everyone:F"
@@ -11177,10 +11177,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/disablestoresearch"
   },
-  "WPFالتعديلاتLocation": {
+  "WPFTweaksLocation": {
     "Content": "Location Tracking - Disable",
     "Description": "Disables Location Tracking.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "service": [
       {
@@ -11195,7 +11195,7 @@ $sync.configs.tweaks = @'
         "Name": "Value",
         "Value": "Deny",
         "Type": "String",
-        "OriginalValue": "الكلow"
+        "OriginalValue": "Allow"
       },
       {
         "Path": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Sensor\\Overrides\\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}",
@@ -11214,10 +11214,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/location"
   },
-  "WPFالتعديلاتServices": {
+  "WPFTweaksServices": {
     "Content": "Services - Set to Manual",
     "Description": "Sets some services to Manual startup and adjusts the SvcHostSplitThresholdInKB registry value to better match system memory, which can significantly reduce the number of svchost.exe processes.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "service": [
       {
@@ -11251,10 +11251,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/services"
   },
-  "WPFالتعديلاتBraveDebloat": {
-    "Content": "Brave استعراضr - Debloat",
+  "WPFTweaksBraveDebloat": {
+    "Content": "Brave Browser - Debloat",
     "Description": "Disables various annoyances like Brave Rewards, Leo AI, Crypto Wallet and VPN.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "registry": [
       {
@@ -11344,10 +11344,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/bravedebloat"
   },
-  "WPFالتعديلاتDisableWarningForUnsignedRdp": {
+  "WPFTweaksDisableWarningForUnsignedRdp": {
     "Content": "RDP Unsigned File Warnings - Disable",
     "Description": "Disables warnings shown when launching unsigned RDP files introduced with the latest Windows 10 and 11 updates.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "registry": [
       {
@@ -11367,10 +11367,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/disablewarningforunsignedrdp"
   },
-  "WPFالتعديلاتEdgeDebloat": {
+  "WPFTweaksEdgeDebloat": {
     "Content": "Microsoft Edge - Debloat",
     "Description": "Disables various telemetry options, popups, and other annoyances in Edge.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "registry": [
       {
@@ -11388,7 +11388,7 @@ $sync.configs.tweaks = @'
         "OriginalValue": "<RemoveEntry>"
       },
       {
-        "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge\\ExtensionتثبيتBlocklist",
+        "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge\\ExtensionInstallBlocklist",
         "Name": "1",
         "Value": "ofefcgjbeghpigppfmkologfjadafddi",
         "Type": "String",
@@ -11410,14 +11410,14 @@ $sync.configs.tweaks = @'
       },
       {
         "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge",
-        "Name": "UserFeedbackالكلowed",
+        "Name": "UserFeedbackAllowed",
         "Value": "0",
         "Type": "DWord",
         "OriginalValue": "<RemoveEntry>"
       },
       {
         "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge",
-        "Name": "الإعدادureDoNotTrack",
+        "Name": "ConfigureDoNotTrack",
         "Value": "1",
         "Type": "DWord",
         "OriginalValue": "<RemoveEntry>"
@@ -11459,7 +11459,7 @@ $sync.configs.tweaks = @'
       },
       {
         "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge",
-        "Name": "WebWidgetالكلowed",
+        "Name": "WebWidgetAllowed",
         "Value": "0",
         "Type": "DWord",
         "OriginalValue": "<RemoveEntry>"
@@ -11487,7 +11487,7 @@ $sync.configs.tweaks = @'
       },
       {
         "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge",
-        "Name": "DefaultاستعراضrالإعداداتCampaignEnabled",
+        "Name": "DefaultBrowserSettingsCampaignEnabled",
         "Value": "0",
         "Type": "DWord",
         "OriginalValue": "<RemoveEntry>"
@@ -11495,10 +11495,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/edgedebloat"
   },
-  "WPFالتعديلاتConsumerFeatures": {
+  "WPFTweaksConsumerFeatures": {
     "Content": "ConsumerFeatures - Disable",
     "Description": "Stops promoted app installs and reduces app suggestions from Microsoft Store content.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "registry": [
       {
@@ -11511,10 +11511,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/consumerfeatures"
   },
-  "WPFالتعديلاتTelemetry": {
+  "WPFTweaksTelemetry": {
     "Content": "Telemetry - Disable",
     "Description": "Disables Microsoft Telemetry.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "registry": [
       {
@@ -11532,7 +11532,7 @@ $sync.configs.tweaks = @'
         "OriginalValue": "<RemoveEntry>"
       },
       {
-        "Path": "HKCU:\\Software\\Microsoft\\Speech_OneCore\\الإعدادات\\OnlineSpeechPrivacy",
+        "Path": "HKCU:\\Software\\Microsoft\\Speech_OneCore\\Settings\\OnlineSpeechPrivacy",
         "Name": "HasAccepted",
         "Value": "0",
         "Type": "DWord",
@@ -11567,7 +11567,7 @@ $sync.configs.tweaks = @'
         "OriginalValue": "<RemoveEntry>"
       },
       {
-        "Path": "HKCU:\\Software\\Microsoft\\Personalization\\الإعدادات",
+        "Path": "HKCU:\\Software\\Microsoft\\Personalization\\Settings",
         "Name": "AcceptedPrivacyPolicy",
         "Value": "0",
         "Type": "DWord",
@@ -11575,7 +11575,7 @@ $sync.configs.tweaks = @'
       },
       {
         "Path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\DataCollection",
-        "Name": "الكلowTelemetry",
+        "Name": "AllowTelemetry",
         "Value": "0",
         "Type": "DWord",
         "OriginalValue": "<RemoveEntry>"
@@ -11610,10 +11610,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/telemetry"
   },
-  "WPFالتعديلاتDeliveryOptimization": {
+  "WPFTweaksDeliveryOptimization": {
     "Content": "Delivery Optimization - Disable",
     "Description": "Stops Windows from using your bandwidth to upload updates to other PCs on the internet or local network.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "registry": [
       {
@@ -11626,23 +11626,23 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/deliveryoptimization"
   },
-  "WPFالتعديلاتRemoveEdge": {
+  "WPFTweaksRemoveEdge": {
     "Content": "Microsoft Edge - Remove",
     "Description": "Uninstalls Microsoft Edge by creating dummy MicrosoftEdge.exe file in the legacy Edge folder. This tricks Windows into unlocking the official Edge uninstaller allowing for a system-level removal.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "InvokeScript": [
-      "\r\n      $Path = Resolve-Path -Path \"$Env:ProgramFiles (x86)\\Microsoft\\Edge\\Application\\*\\تثبيتer\\setup.exe\" | Select-Object -Last 1\r\n\r\n      if (Test-Path $Path) {\r\n          New-Item -Path \"$Env:SystemRoot\\SystemApps\\Microsoft.MicrosoftEdge_8wekyb3d8bbwe\\MicrosoftEdge.exe\" -Force\r\n          Start-Process -FilePath $Path -ArgumentList \"--uninstall --system-level --force-uninstall --delete-profile\" -Wait\r\n          Write-Host \"Microsoft Edge was removed\"\r\n      } else {\r\n          Write-Host \"Microsoft Edge is not installed\"\r\n      }\r\n      "
+      "\r\n      $Path = Resolve-Path -Path \"$Env:ProgramFiles (x86)\\Microsoft\\Edge\\Application\\*\\Installer\\setup.exe\" | Select-Object -Last 1\r\n\r\n      if (Test-Path $Path) {\r\n          New-Item -Path \"$Env:SystemRoot\\SystemApps\\Microsoft.MicrosoftEdge_8wekyb3d8bbwe\\MicrosoftEdge.exe\" -Force\r\n          Start-Process -FilePath $Path -ArgumentList \"--uninstall --system-level --force-uninstall --delete-profile\" -Wait\r\n          Write-Host \"Microsoft Edge was removed\"\r\n      } else {\r\n          Write-Host \"Microsoft Edge is not installed\"\r\n      }\r\n      "
     ],
     "UndoScript": [
-      "\r\n      Write-Host \"جارٍ التثبيت: Microsoft Edge...\"\r\n      winget install Microsoft.Edge --source winget\r\n      "
+      "\r\n      Write-Host \"Installing Microsoft Edge...\"\r\n      winget install Microsoft.Edge --source winget\r\n      "
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/removeedge"
   },
-  "WPFالتعديلاتDisableBitLocker": {
+  "WPFTweaksDisableBitLocker": {
     "Content": "BitLocker - Disable",
     "Description": "Disables BitLocker.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "InvokeScript": [
       "Disable-BitLocker -MountPoint $Env:SystemDrive"
@@ -11652,10 +11652,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/disablebitlocker"
   },
-  "WPFالتعديلاتUTC": {
+  "WPFTweaksUTC": {
     "Content": "Date & Time - Set Time to UTC",
     "Description": "Essential for computers that are dual booting. Fixes the time sync with Linux systems.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "registry": [
       {
@@ -11668,23 +11668,23 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/utc"
   },
-  "WPFالتعديلاتRemoveOneDrive": {
+  "WPFTweaksRemoveOneDrive": {
     "Content": "Microsoft OneDrive - Remove",
     "Description": "Denies permission to remove OneDrive user files, then uses its own uninstaller to remove it and restores the original permission afterward.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "InvokeScript": [
-      "\r\n      # Deny permission to remove OneDrive folder\r\n      icacls $Env:OneDrive /deny \"Administrators:(D,DC)\"\r\n\r\n      Write-Host \"جارٍ إلغاء التثبيت: OneDrive...\"\r\n      Start-Process -FilePath (Join-Path $Env:SystemRoot \"System32\\OneDriveSetup.exe\") -ArgumentList '/uninstall' -Wait\r\n\r\n      # Some of OneDrive files use explorer, and OneDrive uses FileCoAuth\r\n      Write-Host \"جارٍ الإزالة: leftover OneDrive Files...\"\r\n\r\n      Stop-Process -Name FileCoAuth,Explorer\r\n\r\n      Remove-Item \"$Env:LocalAppData\\Microsoft\\OneDrive\" -Recurse -Force\r\n      Remove-Item \"$Env:ProgramData\\Microsoft OneDrive\" -Recurse -Force\r\n\r\n      # Grant back permission to access OneDrive folder\r\n      icacls $Env:OneDrive /grant \"Administrators:(D,DC)\"\r\n\r\n      if (-not (Get-ChildItem -Path $Env:OneDrive)) {\r\n          Remove-Item -Path $Env:OneDrive -Recurse\r\n          [Environment]::SetEnvironmentVariable('OneDrive', $null, 'User')\r\n      }\r\n\r\n      # Disable OneSyncSvc\r\n      Set-Service -Name OneSyncSvc -StartupType Disabled\r\n      "
+      "\r\n      # Deny permission to remove OneDrive folder\r\n      icacls $Env:OneDrive /deny \"Administrators:(D,DC)\"\r\n\r\n      Write-Host \"Uninstalling OneDrive...\"\r\n      Start-Process -FilePath (Join-Path $Env:SystemRoot \"System32\\OneDriveSetup.exe\") -ArgumentList '/uninstall' -Wait\r\n\r\n      # Some of OneDrive files use explorer, and OneDrive uses FileCoAuth\r\n      Write-Host \"Removing leftover OneDrive Files...\"\r\n\r\n      Stop-Process -Name FileCoAuth,Explorer\r\n\r\n      Remove-Item \"$Env:LocalAppData\\Microsoft\\OneDrive\" -Recurse -Force\r\n      Remove-Item \"$Env:ProgramData\\Microsoft OneDrive\" -Recurse -Force\r\n\r\n      # Grant back permission to access OneDrive folder\r\n      icacls $Env:OneDrive /grant \"Administrators:(D,DC)\"\r\n\r\n      if (-not (Get-ChildItem -Path $Env:OneDrive)) {\r\n          Remove-Item -Path $Env:OneDrive -Recurse\r\n          [Environment]::SetEnvironmentVariable('OneDrive', $null, 'User')\r\n      }\r\n\r\n      # Disable OneSyncSvc\r\n      Set-Service -Name OneSyncSvc -StartupType Disabled\r\n      "
     ],
     "UndoScript": [
-      "\r\n      Write-Host \"جارٍ التثبيت: OneDrive\"\r\n      winget install Microsoft.Onedrive --source winget\r\n\r\n      # Enabled OneSyncSvc\r\n      Set-Service -Name OneSyncSvc -StartupType Automatic\r\n      "
+      "\r\n      Write-Host \"Installing OneDrive\"\r\n      winget install Microsoft.Onedrive --source winget\r\n\r\n      # Enabled OneSyncSvc\r\n      Set-Service -Name OneSyncSvc -StartupType Automatic\r\n      "
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/removeonedrive"
   },
-  "WPFالتعديلاتRemoveHomeAndGallery": {
+  "WPFTweaksRemoveHomeAndGallery": {
     "Content": "File Explorer Home and Gallery - Disable",
     "Description": "Removes the Home and Gallery from Explorer and sets This PC as default.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "registry": [
       {
@@ -11711,10 +11711,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/removehomeandgallery"
   },
-  "WPFالتعديلاتDisplay": {
+  "WPFTweaksDisplay": {
     "Content": "Visual Effects - Set to Best Performance",
     "Description": "Sets the system preferences to performance. You can do this manually with sysdm.cpl as well.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "registry": [
       {
@@ -11810,10 +11810,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/display"
   },
-  "WPFالتعديلاتReservedStorage": {
+  "WPFTweaksReservedStorage": {
     "Content": "Disable Reserved Storage",
-    "Description": "Disables Windows Reserved Storage (7-10 GB held for updates/temp files). موصى به only on small drives. Re-enable before major Windows feature updates to avoid installation failures.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "Description": "Disables Windows Reserved Storage (7-10 GB held for updates/temp files). Recommended only on small drives. Re-enable before major Windows feature updates to avoid installation failures.",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "InvokeScript": [
       "DISM /Online /Set-ReservedStorageState /State:Disabled"
@@ -11823,10 +11823,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/reservedstorage"
   },
-  "WPFالتعديلاتRestorePoint": {
+  "WPFTweaksRestorePoint": {
     "Content": "Restore Point - Create",
     "Description": "Creates a restore point at runtime in case a revert is needed from WinUtil modifications.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "Checked": "False",
     "registry": [
@@ -11843,14 +11843,14 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/restorepoint"
   },
-  "WPFالتعديلاتEndTaskOnTaskbar": {
+  "WPFTweaksEndTaskOnTaskbar": {
     "Content": "End Task With Right Click - Enable",
     "Description": "Enables option to end task when right clicking a program in the taskbar.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "registry": [
       {
-        "Path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced\\TaskbarDeveloperالإعدادات",
+        "Path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced\\TaskbarDeveloperSettings",
         "Name": "TaskbarEndTask",
         "Value": "1",
         "Type": "DWord",
@@ -11859,10 +11859,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/endtaskontaskbar"
   },
-  "WPFالتعديلاتStorage": {
+  "WPFTweaksStorage": {
     "Content": "Storage Sense - Disable",
     "Description": "Storage Sense deletes temp files automatically.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "registry": [
       {
@@ -11875,15 +11875,15 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/storage"
   },
-  "WPFالتعديلاتWindowsAI": {
+  "WPFTweaksWindowsAI": {
     "Content": "Windows AI - Disable And Remove",
     "Description": "Removes and disables all AI features/packages",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "registry": [
       {
         "Path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
-        "Name": "الإعداداتPageVisibility",
+        "Name": "SettingsPageVisibility",
         "Value": "hide:aicomponents",
         "Type": "String",
         "OriginalValue": "<RemoveEntry>"
@@ -11897,14 +11897,14 @@ $sync.configs.tweaks = @'
       }
     ],
     "InvokeScript": [
-      "\r\n      $Appx = (Get-AppxPackage MicrosoftWindows.Client.CoreAI).PackageFullName\r\n      $Sid = (Get-LocalUser $Env:UserName).Sid.Value\r\n\r\n      New-Item \"HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Appx\\AppxالكلUserStore\\EndOfLife\\$Sid\\$Appx\" -Force\r\n\r\n      Get-AppxPackage -الكلUsers \"*Copilot*\" | Remove-AppxPackage -الكلUsers\r\n      winget uninstall -e --name \"Copilot\" --silent --force --accept-source-agreements 2>$null\r\n      Get-AppxPackage -الكلUsers Microsoft.MicrosoftOfficeHub | Remove-AppxPackage -الكلUsers\r\n\r\n      if ($Appx) {\r\n          Remove-AppxPackage $Appx\r\n      }\r\n\r\n      Set-Service -Name WSAIFabricSvc -StartupType Disabled\r\n      Disable-WindowsOptionalFeature -FeatureName Recall -Online -NoRestart\r\n\r\n      Write-Host \"Windows AI Disabled\"\r\n      "
+      "\r\n      $Appx = (Get-AppxPackage MicrosoftWindows.Client.CoreAI).PackageFullName\r\n      $Sid = (Get-LocalUser $Env:UserName).Sid.Value\r\n\r\n      New-Item \"HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Appx\\AppxAllUserStore\\EndOfLife\\$Sid\\$Appx\" -Force\r\n\r\n      Get-AppxPackage -AllUsers \"*Copilot*\" | Remove-AppxPackage -AllUsers\r\n      winget uninstall -e --name \"Copilot\" --silent --force --accept-source-agreements 2>$null\r\n      Get-AppxPackage -AllUsers Microsoft.MicrosoftOfficeHub | Remove-AppxPackage -AllUsers\r\n\r\n      if ($Appx) {\r\n          Remove-AppxPackage $Appx\r\n      }\r\n\r\n      Set-Service -Name WSAIFabricSvc -StartupType Disabled\r\n      Disable-WindowsOptionalFeature -FeatureName Recall -Online -NoRestart\r\n\r\n      Write-Host \"Windows AI Disabled\"\r\n      "
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/windowsai"
   },
-  "WPFالتعديلاتWPBT": {
+  "WPFTweaksWPBT": {
     "Content": "Windows Platform Binary Table (WPBT) - Disable",
     "Description": "If enabled, WPBT allows your computer vendor to execute programs at boot time, such as anti-theft software, software drivers, as well as force install software without user consent. Poses potential security risk.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "registry": [
       {
@@ -11917,10 +11917,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/wpbt"
   },
-  "WPFالتعديلاتPreventDeviceMetadataFromNetwork": {
+  "WPFTweaksPreventDeviceMetadataFromNetwork": {
     "Content": "Prevent Device Companion Apps",
     "Description": "Prevents additional software from being installed when plugging in devices (e.g. Ads when plugging in a monitor). Poses potential security risk.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "registry": [
       {
@@ -11933,39 +11933,39 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/preventdevicemetadatafromnetwork"
   },
-  "WPFالتعديلاتRazerBlock": {
-    "Content": "Razer Software Auto-تثبيت - Disable",
+  "WPFTweaksRazerBlock": {
+    "Content": "Razer Software Auto-Install - Disable",
     "Description": "Blocks ALL Razer Software installations. The hardware works fine without any software.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "registry": [
       {
         "Path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\DriverSearching",
-        "Name": "SearchOrderالإعداد",
+        "Name": "SearchOrderConfig",
         "Value": "0",
         "Type": "DWord",
         "OriginalValue": "1"
       },
       {
-        "Path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Device تثبيتer",
-        "Name": "DisableCoتثبيتers",
+        "Path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Device Installer",
+        "Name": "DisableCoInstallers",
         "Value": "1",
         "Type": "DWord",
         "OriginalValue": "0"
       }
     ],
     "InvokeScript": [
-      "\r\n      $RazerPath = \"$Env:SystemRoot\\تثبيتer\\Razer\"\r\n\r\n      if (Test-Path $RazerPath) {\r\n        Remove-Item $RazerPath\\* -Recurse -Force\r\n      } else {\r\n        New-Item -Path $RazerPath -ItemType Directory\r\n      }\r\n\r\n      icacls $RazerPath /deny \"Everyone:(W)\"\r\n      "
+      "\r\n      $RazerPath = \"$Env:SystemRoot\\Installer\\Razer\"\r\n\r\n      if (Test-Path $RazerPath) {\r\n        Remove-Item $RazerPath\\* -Recurse -Force\r\n      } else {\r\n        New-Item -Path $RazerPath -ItemType Directory\r\n      }\r\n\r\n      icacls $RazerPath /deny \"Everyone:(W)\"\r\n      "
     ],
     "UndoScript": [
-      "\r\n      icacls \"$Env:SystemRoot\\تثبيتer\\Razer\" /remove:d Everyone\r\n      "
+      "\r\n      icacls \"$Env:SystemRoot\\Installer\\Razer\" /remove:d Everyone\r\n      "
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/razerblock"
   },
-  "WPFالتعديلاتDisableNotifications": {
+  "WPFTweaksDisableNotifications": {
     "Content": "System Tray Notifications & Calendar - Disable",
     "Description": "Disables all Notifications INCLUDING Calendar.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "registry": [
       {
@@ -11985,10 +11985,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/disablenotifications"
   },
-  "WPFالتعديلاتBlockAdobeNet": {
+  "WPFTweaksBlockAdobeNet": {
     "Content": "Adobe URL Block List - Enable",
     "Description": "Reduces user interruptions by selectively blocking connections to Adobe's activation and telemetry servers. Credit: Ruddernation-Designs",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "InvokeScript": [
       "\r\n      $hostsUrl = Invoke-RestMethod -Uri https://github.com/Ruddernation-Designs/Adobe-URL-Block-List/raw/refs/heads/master/hosts\r\n      Add-Content -Path \"$Env:SystemRoot\\System32\\drivers\\etc\\hosts\" -Value $hostsUrl\r\n\r\n      ipconfig /flushdns\r\n      Write-Host 'Added Adobe url block list from host file'\r\n      "
@@ -11998,10 +11998,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/blockadobenet"
   },
-  "WPFالتعديلاتRightClickMenu": {
+  "WPFTweaksRightClickMenu": {
     "Content": "Right-Click Menu Previous Layout - Enable",
     "Description": "Restores the classic context menu when right-clicking in File Explorer, replacing the simplified Windows 11 version.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "InvokeScript": [
       "\r\n      New-Item -Path \"HKCU:\\Software\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\" -Name InprocServer32 -Value \"\" -Force\r\n      Stop-Process -Name explorer\r\n      "
@@ -12011,30 +12011,30 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/rightclickmenu"
   },
-  "WPFالتعديلاتDiskCleanup": {
+  "WPFTweaksDiskCleanup": {
     "Content": "Disk Cleanup - Run",
-    "Description": "Runs Disk Cleanup on Drive C: and removes old Windows التحديثات.",
-    "category": "Essential التعديلات",
+    "Description": "Runs Disk Cleanup on Drive C: and removes old Windows Updates.",
+    "category": "Essential Tweaks",
     "panel": "1",
     "InvokeScript": [
-      "\r\n      cleanmgr.exe /d C: /VERYLOWDISK\r\n      Dism.exe /online /Cleanup-Image /StartComponentCleanup /إعادة ضبطBase\r\n      "
+      "\r\n      cleanmgr.exe /d C: /VERYLOWDISK\r\n      Dism.exe /online /Cleanup-Image /StartComponentCleanup /ResetBase\r\n      "
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/diskcleanup"
   },
-  "WPFالتعديلاتDeleteTempFiles": {
+  "WPFTweaksDeleteTempFiles": {
     "Content": "Temporary Files - Remove",
     "Description": "Erases TEMP Folders.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "InvokeScript": [
       "\r\n      Remove-Item -Path \"$Env:Temp\\*\" -Recurse -Force\r\n      Remove-Item -Path \"$Env:SystemRoot\\Temp\\*\" -Recurse -Force\r\n      "
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/deletetempfiles"
   },
-  "WPFالتعديلاتIPv46": {
+  "WPFTweaksIPv46": {
     "Content": "IPv6 - Set IPv4 as Preferred",
     "Description": "Setting the IPv4 preference can have latency and security benefits on private networks where IPv6 is not configured.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "registry": [
       {
@@ -12047,10 +12047,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/ipv46"
   },
-  "WPFالتعديلاتTeredo": {
+  "WPFTweaksTeredo": {
     "Content": "Teredo - Disable",
     "Description": "Teredo network tunneling is an IPv6 feature that can cause additional latency, but may cause problems with some games.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "registry": [
       {
@@ -12069,10 +12069,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/teredo"
   },
-  "WPFالتعديلاتDisableIPv6": {
+  "WPFTweaksDisableIPv6": {
     "Content": "IPv6 - Disable",
     "Description": "Disables IPv6.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "registry": [
       {
@@ -12091,10 +12091,10 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/disableipv6"
   },
-  "WPFالتعديلاتDisableBGapps": {
+  "WPFTweaksDisableBGapps": {
     "Content": "Background Apps - Disable",
     "Description": "Disables all Microsoft Store apps from running in the background, which has to be done individually since Windows 11.",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "registry": [
       {
@@ -12107,16 +12107,16 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/disablebgapps"
   },
-  "WPFالتعديلاتDisableExplorerAutoDiscovery": {
+  "WPFTweaksDisableExplorerAutoDiscovery": {
     "Content": "File Explorer Automatic Folder Discovery - Disable",
     "Description": "Windows Explorer automatically tries to guess the type of the folder based on its contents, slowing down the browsing experience. WARNING! Will disable File Explorer grouping.",
-    "category": "Essential التعديلات",
+    "category": "Essential Tweaks",
     "panel": "1",
     "InvokeScript": [
-      "\r\n      # Previously detected folders\r\n      $bags = \"HKCU:\\Software\\Classes\\Local الإعدادات\\Software\\Microsoft\\Windows\\Shell\\Bags\"\r\n\r\n      # Folder types lookup table\r\n      $bagMRU = \"HKCU:\\Software\\Classes\\Local الإعدادات\\Software\\Microsoft\\Windows\\Shell\\BagMRU\"\r\n\r\n      # Flush Explorer view database\r\n      Remove-Item -Path $bags -Recurse -Force\r\n      Write-Host \"Removed $bags\"\r\n\r\n      Remove-Item -Path $bagMRU -Recurse -Force\r\n      Write-Host \"Removed $bagMRU\"\r\n\r\n      # Every folder\r\n      $allFolders = \"HKCU:\\Software\\Classes\\Local الإعدادات\\Software\\Microsoft\\Windows\\Shell\\Bags\\الكلFolders\\Shell\"\r\n\r\n      if (!(Test-Path $allFolders)) {\r\n        New-Item -Path $allFolders -Force\r\n        Write-Host \"Created $allFolders\"\r\n      }\r\n\r\n      # Generic view\r\n      New-ItemProperty -Path $allFolders -Name \"FolderType\" -Value \"NotSpecified\" -PropertyType String -Force\r\n      Write-Host \"Set FolderType to NotSpecified\"\r\n\r\n      Write-Host Please sign out and back in, or restart your computer to apply the changes!\r\n      "
+      "\r\n      # Previously detected folders\r\n      $bags = \"HKCU:\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\Bags\"\r\n\r\n      # Folder types lookup table\r\n      $bagMRU = \"HKCU:\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\BagMRU\"\r\n\r\n      # Flush Explorer view database\r\n      Remove-Item -Path $bags -Recurse -Force\r\n      Write-Host \"Removed $bags\"\r\n\r\n      Remove-Item -Path $bagMRU -Recurse -Force\r\n      Write-Host \"Removed $bagMRU\"\r\n\r\n      # Every folder\r\n      $allFolders = \"HKCU:\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\Bags\\AllFolders\\Shell\"\r\n\r\n      if (!(Test-Path $allFolders)) {\r\n        New-Item -Path $allFolders -Force\r\n        Write-Host \"Created $allFolders\"\r\n      }\r\n\r\n      # Generic view\r\n      New-ItemProperty -Path $allFolders -Name \"FolderType\" -Value \"NotSpecified\" -PropertyType String -Force\r\n      Write-Host \"Set FolderType to NotSpecified\"\r\n\r\n      Write-Host Please sign out and back in, or restart your computer to apply the changes!\r\n      "
     ],
     "UndoScript": [
-      "\r\n      # Previously detected folders\r\n      $bags = \"HKCU:\\Software\\Classes\\Local الإعدادات\\Software\\Microsoft\\Windows\\Shell\\Bags\"\r\n\r\n      # Folder types lookup table\r\n      $bagMRU = \"HKCU:\\Software\\Classes\\Local الإعدادات\\Software\\Microsoft\\Windows\\Shell\\BagMRU\"\r\n\r\n      # Flush Explorer view database\r\n      Remove-Item -Path $bags -Recurse -Force\r\n      Write-Host \"Removed $bags\"\r\n\r\n      Remove-Item -Path $bagMRU -Recurse -Force\r\n      Write-Host \"Removed $bagMRU\"\r\n\r\n      Write-Host Please sign out and back in, or restart your computer to apply the changes!\r\n      "
+      "\r\n      # Previously detected folders\r\n      $bags = \"HKCU:\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\Bags\"\r\n\r\n      # Folder types lookup table\r\n      $bagMRU = \"HKCU:\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\BagMRU\"\r\n\r\n      # Flush Explorer view database\r\n      Remove-Item -Path $bags -Recurse -Force\r\n      Write-Host \"Removed $bags\"\r\n\r\n      Remove-Item -Path $bagMRU -Recurse -Force\r\n      Write-Host \"Removed $bagMRU\"\r\n\r\n      Write-Host Please sign out and back in, or restart your computer to apply the changes!\r\n      "
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/disableexplorerautodiscovery"
   },
@@ -12446,7 +12446,7 @@ $sync.configs.tweaks = @'
     "Type": "Toggle",
     "registry": [
       {
-        "Path": "HKCU:\\SOFTWARE\\Policies\\Microsoft\\Power\\Powerالإعدادات\\f15576e8-98b7-4186-b944-eafa664402d9",
+        "Path": "HKCU:\\SOFTWARE\\Policies\\Microsoft\\Power\\PowerSettings\\f15576e8-98b7-4186-b944-eafa664402d9",
         "Name": "ACSettingIndex",
         "Value": "1",
         "Type": "DWord",
@@ -12474,16 +12474,16 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/s3sleep"
   },
-  "WPFToggleHideالإعداداتHome": {
-    "Content": "الإعدادات Home Page",
-    "Description": "Toggles the Home Page in the Windows الإعدادات app.",
+  "WPFToggleHideSettingsHome": {
+    "Content": "Settings Home Page",
+    "Description": "Toggles the Home Page in the Windows Settings app.",
     "category": "Customize Preferences",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
       {
         "Path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
-        "Name": "الإعداداتPageVisibility",
+        "Name": "SettingsPageVisibility",
         "Value": "show:home",
         "Type": "String",
         "OriginalValue": "hide:home",
@@ -12528,7 +12528,7 @@ $sync.configs.tweaks = @'
     ],
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/loginblur"
   },
-  "WPFالتعديلاتDisableLockscreen": {
+  "WPFTweaksDisableLockscreen": {
     "Content": "Lock Screen - Disable",
     "Description": "Skips the lock screen entirely and goes directly to the sign-in screen on boot and wake.",
     "category": "Customize Preferences",
@@ -12554,7 +12554,7 @@ $sync.configs.tweaks = @'
     "registry": [
       {
         "Path": "HKLM:\\SOFTWARE\\Microsoft\\PolicyManager\\current\\device\\Start",
-        "Name": "Hideموصى بهSection",
+        "Name": "HideRecommendedSection",
         "Value": "0",
         "Type": "DWord",
         "OriginalValue": "1",
@@ -12570,7 +12570,7 @@ $sync.configs.tweaks = @'
       },
       {
         "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer",
-        "Name": "Hideموصى بهSection",
+        "Name": "HideRecommendedSection",
         "Value": "0",
         "Type": "DWord",
         "OriginalValue": "1",
@@ -12672,7 +12672,7 @@ $sync.configs.tweaks = @'
     "registry": [
       {
         "Path": "HKCU:\\Software\\Microsoft\\GameBar",
-        "Name": "الكلowAutoGameMode",
+        "Name": "AllowAutoGameMode",
         "Value": "1",
         "Type": "DWord",
         "OriginalValue": "0",
@@ -12709,14 +12709,14 @@ $sync.configs.tweaks = @'
   },
   "WPFOOSUbutton": {
     "Content": "O&O ShutUp10++ - Run",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "Type": "Button",
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/oosubutton"
   },
   "WPFchangedns": {
     "Content": "DNS - Set to:",
-    "category": "z__Advanced التعديلات - CAUTION",
+    "category": "z__Advanced Tweaks - CAUTION",
     "panel": "1",
     "Type": "Combobox",
     "ComboItems": "Default DHCP Google Cloudflare Cloudflare_Malware Cloudflare_Malware_Adult Open_DNS Quad9 AdGuard_Ads_Trackers AdGuard_Ads_Trackers_Malware_Adult Mullvad Mullvad_Ads_Trackers Mullvad_Ads_Trackers_Malware Mullvad_Ads_Trackers_Malware_Social Mullvad_Ads_Trackers_Malware_Adult_Gambling Mullvad_Ads_Trackers_Malware_Adult_Gambling_Social",
@@ -12833,7 +12833,7 @@ $inputXML = @'
         <Setter Property="VerticalAlignment" Value="Top"/>
         <Setter Property="Margin" Value="{DynamicResource AppEntryMargin}"/>
         <Setter Property="Cursor" Value="Hand"/>
-        <Setter Property="Background" Value="{DynamicResource AppتثبيتUnselectedColor}"/>
+        <Setter Property="Background" Value="{DynamicResource AppInstallUnselectedColor}"/>
     </Style>
     <Style x:Key="AppEntryCheckboxStyle" TargetType="CheckBox">
         <Setter Property="Background" Value="Transparent"/>
@@ -13047,7 +13047,7 @@ $inputXML = @'
                                    IsOpen="{TemplateBinding IsDropDownOpen}"
                                    Placement="Bottom"
                                    Focusable="False"
-                                   الكلowsTransparency="True"
+                                   AllowsTransparency="True"
                                    PopupAnimation="Slide">
                                 <Border Name="DropDownBorder"
                                         Background="{TemplateBinding Background}"
@@ -13616,9 +13616,9 @@ $inputXML = @'
                                         <ControlTemplate TargetType="ContextMenu">
                                             <Border Background="{DynamicResource MainBackgroundColor}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1" CornerRadius="5" Padding="5">
                                                 <StackPanel>
-                                                    <MenuItem Command="قص" Header="قص"/>
-                                                    <MenuItem Command="نسخ" Header="نسخ"/>
-                                                    <MenuItem Command="لصق" Header="لصق"/>
+                                                    <MenuItem Command="Cut" Header="قص"/>
+                                                    <MenuItem Command="Copy" Header="Copy"/>
+                                                    <MenuItem Command="Paste" Header="لصق"/>
                                                 </StackPanel>
                                             </Border>
                                         </ControlTemplate>
@@ -13707,7 +13707,7 @@ $inputXML = @'
                 </Setter.Value>
             </Setter>
         </Style>
-        <!-- Filter Chip Style — used by the تثبيت tab category filter buttons -->
+        <!-- Filter Chip Style — used by the Install tab category filter buttons -->
         <Style x:Key="FilterChipStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Margin" Value="2"/>
             <Setter Property="Padding" Value="12,0,12,0"/>
@@ -13805,34 +13805,34 @@ $inputXML = @'
                 <StackPanel Name="NavLogoPanel" Orientation="Horizontal" HorizontalAlignment="Left" Background="{DynamicResource MainBackgroundColor}" SnapsToDevicePixels="True" Margin="10,0,20,0">
                 </StackPanel>
                 <ToggleButton Style="{StaticResource TabToggleButton}" Margin="0,0,5,0" Height="{DynamicResource TabButtonHeight}" Width="{DynamicResource TabButtonWidth}"
-                    Background="{DynamicResource ButtonتثبيتBackgroundColor}" Foreground="white" FontWeight="Bold" Name="WPFTab1BT">
+                    Background="{DynamicResource ButtonInstallBackgroundColor}" Foreground="white" FontWeight="Bold" Name="WPFTab1BT">
                     <ToggleButton.Content>
-                        <TextBlock FontSize="{DynamicResource TabButtonFontSize}" Background="Transparent" Foreground="{DynamicResource ButtonتثبيتForegroundColor}" >
-                            <Underline>I</Underline>nstall
+                        <TextBlock FontSize="{DynamicResource TabButtonFontSize}" Background="Transparent" Foreground="{DynamicResource ButtonInstallForegroundColor}" >
+                            تثبيت
                         </TextBlock>
                     </ToggleButton.Content>
                 </ToggleButton>
                 <ToggleButton Style="{StaticResource TabToggleButton}" Margin="0,0,5,0" Height="{DynamicResource TabButtonHeight}" Width="{DynamicResource TabButtonWidth}"
-                    Background="{DynamicResource ButtonالتعديلاتBackgroundColor}" Foreground="{DynamicResource ButtonالتعديلاتForegroundColor}" FontWeight="Bold" Name="WPFTab2BT">
+                    Background="{DynamicResource ButtonTweaksBackgroundColor}" Foreground="{DynamicResource ButtonTweaksForegroundColor}" FontWeight="Bold" Name="WPFTab2BT">
                     <ToggleButton.Content>
-                        <TextBlock FontSize="{DynamicResource TabButtonFontSize}" Background="Transparent" Foreground="{DynamicResource ButtonالتعديلاتForegroundColor}">
-                            <Underline>T</Underline>weaks
+                        <TextBlock FontSize="{DynamicResource TabButtonFontSize}" Background="Transparent" Foreground="{DynamicResource ButtonTweaksForegroundColor}">
+                            التعديلات
                         </TextBlock>
                     </ToggleButton.Content>
                 </ToggleButton>
                 <ToggleButton Style="{StaticResource TabToggleButton}" Margin="0,0,5,0" Height="{DynamicResource TabButtonHeight}" Width="{DynamicResource TabButtonWidth}"
-                    Background="{DynamicResource ButtonالإعدادBackgroundColor}" Foreground="{DynamicResource ButtonالإعدادForegroundColor}" FontWeight="Bold" Name="WPFTab3BT">
+                    Background="{DynamicResource ButtonConfigBackgroundColor}" Foreground="{DynamicResource ButtonConfigForegroundColor}" FontWeight="Bold" Name="WPFTab3BT">
                     <ToggleButton.Content>
-                        <TextBlock FontSize="{DynamicResource TabButtonFontSize}" Background="Transparent" Foreground="{DynamicResource ButtonالإعدادForegroundColor}">
-                            <Underline>C</Underline>onfig
+                        <TextBlock FontSize="{DynamicResource TabButtonFontSize}" Background="Transparent" Foreground="{DynamicResource ButtonConfigForegroundColor}">
+                            الإعداد
                         </TextBlock>
                     </ToggleButton.Content>
                 </ToggleButton>
                 <ToggleButton Style="{StaticResource TabToggleButton}" Margin="0,0,5,0" Height="{DynamicResource TabButtonHeight}" Width="{DynamicResource TabButtonWidth}"
-                    Background="{DynamicResource ButtonالتحديثاتBackgroundColor}" Foreground="{DynamicResource ButtonالتحديثاتForegroundColor}" FontWeight="Bold" Name="WPFTab4BT">
+                    Background="{DynamicResource ButtonUpdatesBackgroundColor}" Foreground="{DynamicResource ButtonUpdatesForegroundColor}" FontWeight="Bold" Name="WPFTab4BT">
                     <ToggleButton.Content>
-                        <TextBlock FontSize="{DynamicResource TabButtonFontSize}" Background="Transparent" Foreground="{DynamicResource ButtonالتحديثاتForegroundColor}">
-                            <Underline>U</Underline>pdates
+                        <TextBlock FontSize="{DynamicResource TabButtonFontSize}" Background="Transparent" Foreground="{DynamicResource ButtonUpdatesForegroundColor}">
+                            التحديثات
                         </TextBlock>
                     </ToggleButton.Content>
                 </ToggleButton>
@@ -13840,7 +13840,7 @@ $inputXML = @'
                     Background="{DynamicResource ButtonWin11ISOBackgroundColor}" Foreground="{DynamicResource ButtonWin11ISOForegroundColor}" FontWeight="Bold" Name="WPFTab5BT">
                     <ToggleButton.Content>
                         <TextBlock FontSize="{DynamicResource TabButtonFontSize}" Background="Transparent" Foreground="{DynamicResource ButtonWin11ISOForegroundColor}">
-                            <Underline>W</Underline>in11 Creator
+                            إنشاء Win11
                         </TextBlock>
                     </ToggleButton.Content>
                 </ToggleButton>
@@ -13891,7 +13891,7 @@ $inputXML = @'
                         BorderBrush="Transparent"
                     Background="{DynamicResource MainBackgroundColor}"
                     Foreground="{DynamicResource MainForegroundColor}"
-                    FontSize="{DynamicResource الإعداداتIconFontSize}"
+                    FontSize="{DynamicResource SettingsIconFontSize}"
                     Width="{DynamicResource IconButtonSize}" Height="{DynamicResource IconButtonSize}"
                     HorizontalAlignment="Right" VerticalAlignment="Center"
                     Margin="0,0,2,0"
@@ -13930,14 +13930,14 @@ $inputXML = @'
                         BorderBrush="Transparent"
                     Background="{DynamicResource MainBackgroundColor}"
                     Foreground="{DynamicResource MainForegroundColor}"
-                    FontSize="{DynamicResource الإعداداتIconFontSize}"
+                    FontSize="{DynamicResource SettingsIconFontSize}"
                     Width="{DynamicResource IconButtonSize}" Height="{DynamicResource IconButtonSize}"
                     HorizontalAlignment="Right" VerticalAlignment="Center"
                     Margin="0,0,2,0"
                     FontFamily="Segoe MDL2 Assets"
                     Content="&#xE8D3;"
                     ToolTip="ضبط حجم الخط لإمكانية الوصول"
-                    AutomationProperties.Name="حجم الخط"
+                    AutomationProperties.Name="Font Scaling"
                 />
                     <Popup Name="FontScalingPopup"
                     IsOpen="False"
@@ -13966,7 +13966,7 @@ $inputXML = @'
                                         IsSnapToTickEnabled="True"
                                         Width="120"
                                         VerticalAlignment="Center"
-                                        AutomationProperties.Name="حجم الخط"/>
+                                        AutomationProperties.Name="Font Scaling"/>
                                 <TextBlock Text="كبير"
                                            FontSize="{DynamicResource ButtonFontSize}"
                                            Foreground="{DynamicResource MainForegroundColor}"
@@ -13980,12 +13980,12 @@ $inputXML = @'
                                        HorizontalAlignment="Center"
                                        Margin="10,0,10,5"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="10,0,10,10">
-                                <Button Name="FontScalingإعادة ضبطButton"
+                                <Button Name="FontScalingResetButton"
                                         Content="إعادة ضبط"
                                         Style="{StaticResource HoverButtonStyle}"
                                         Width="60" Height="25"
                                         Margin="5,0,5,0"/>
-                                <Button Name="FontScalingتطبيقButton"
+                                <Button Name="FontScalingApplyButton"
                                         Content="تطبيق"
                                         Style="{StaticResource HoverButtonStyle}"
                                         Width="60" Height="25"
@@ -13995,38 +13995,38 @@ $inputXML = @'
                     </Border>
                 </Popup>
 
-                    <Button Name="الإعداداتButton"
+                    <Button Name="SettingsButton"
                         Style="{StaticResource HoverButtonStyle}"
                         BorderBrush="Transparent"
                     Background="{DynamicResource MainBackgroundColor}"
                     Foreground="{DynamicResource MainForegroundColor}"
-                    FontSize="{DynamicResource الإعداداتIconFontSize}"
+                    FontSize="{DynamicResource SettingsIconFontSize}"
                     Width="{DynamicResource IconButtonSize}" Height="{DynamicResource IconButtonSize}"
                     HorizontalAlignment="Right" VerticalAlignment="Center"
                     Margin="0,0,2,0"
                     FontFamily="Segoe MDL2 Assets"
-                    ToolTip="الإعدادات"
-                    AutomationProperties.Name="الإعدادات"
+                    ToolTip="Settings"
+                    AutomationProperties.Name="Settings"
                     Content="&#xE713;"/>
-                    <Popup Name="الإعداداتPopup"
+                    <Popup Name="SettingsPopup"
                     IsOpen="False"
-                    PlacementTarget="{Binding ElementName=الإعداداتButton}" Placement="Bottom"
+                    PlacementTarget="{Binding ElementName=SettingsButton}" Placement="Bottom"
                     HorizontalAlignment="Right" VerticalAlignment="Top">
                     <Border Background="{DynamicResource MainBackgroundColor}" BorderBrush="{DynamicResource MainForegroundColor}" BorderThickness="1" CornerRadius="0" Margin="0">
                         <StackPanel Background="{DynamicResource MainBackgroundColor}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                            <MenuItem FontSize="{DynamicResource ButtonFontSize}" Header="استيراد" Name="استيرادMenuItem" Foreground="{DynamicResource MainForegroundColor}">
+                            <MenuItem FontSize="{DynamicResource ButtonFontSize}" Header="Import" Name="ImportMenuItem" Foreground="{DynamicResource MainForegroundColor}">
                                 <MenuItem.ToolTip>
                                     <ToolTip Content="استيراد الإعداد من ملف مُصدَّر."/>
                                 </MenuItem.ToolTip>
                             </MenuItem>
-                            <MenuItem FontSize="{DynamicResource ButtonFontSize}" Header="تصدير" Name="تصديرMenuItem" Foreground="{DynamicResource MainForegroundColor}">
+                            <MenuItem FontSize="{DynamicResource ButtonFontSize}" Header="Export" Name="ExportMenuItem" Foreground="{DynamicResource MainForegroundColor}">
                                 <MenuItem.ToolTip>
                                     <ToolTip Content="تصدير العناصر المحددة ونسخ أمر التشغيل للحافظة."/>
                                 </MenuItem.ToolTip>
                             </MenuItem>
                             <Separator/>
-                            <MenuItem FontSize="{DynamicResource ButtonFontSize}" Header="حول البرنامج" Name="حول البرنامجMenuItem" Foreground="{DynamicResource MainForegroundColor}"/>
-                            <MenuItem FontSize="{DynamicResource ButtonFontSize}" Header="التوثيق" Name="التوثيقMenuItem" Foreground="{DynamicResource MainForegroundColor}"/>
+                            <MenuItem FontSize="{DynamicResource ButtonFontSize}" Header="حول البرنامج" Name="AboutMenuItem" Foreground="{DynamicResource MainForegroundColor}"/>
+                            <MenuItem FontSize="{DynamicResource ButtonFontSize}" Header="التوثيق" Name="DocumentationMenuItem" Foreground="{DynamicResource MainForegroundColor}"/>
                             <MenuItem FontSize="{DynamicResource ButtonFontSize}" Header="الرعاة" Name="SponsorMenuItem" Foreground="{DynamicResource MainForegroundColor}"/>
                         </StackPanel>
                     </Border>
@@ -14043,10 +14043,10 @@ $inputXML = @'
                         Margin="0"
                         FontFamily="Segoe MDL2 Assets"
                         Foreground="{DynamicResource MainForegroundColor}"
-                        FontSize="{DynamicResource إغلاقIconFontSize}"
+                        FontSize="{DynamicResource CloseIconFontSize}"
                         ToolTip="تصغير"
-                        AutomationProperties.Name="تصغير"
-                        Name="WPFتصغيرButton" />
+                        AutomationProperties.Name="Minimize"
+                        Name="WPFMinimizeButton" />
                     <Button
                         BorderThickness="0"
                         BorderBrush="Transparent"
@@ -14056,7 +14056,7 @@ $inputXML = @'
                         Margin="0,0,0,0"
                         FontFamily="Segoe MDL2 Assets"
                         Foreground="{DynamicResource MainForegroundColor}"
-                        FontSize="{DynamicResource إغلاقIconFontSize}"
+                        FontSize="{DynamicResource CloseIconFontSize}"
                         Name="WPFMaximizeButton">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource HoverButtonStyle}">
@@ -14085,16 +14085,16 @@ $inputXML = @'
                         Margin="0"
                         FontFamily="Segoe MDL2 Assets"
                         Foreground="{DynamicResource MainForegroundColor}"
-                        FontSize="{DynamicResource إغلاقIconFontSize}"
-                        ToolTip="إغلاق"
-                        AutomationProperties.Name="إغلاق"
-                        Name="WPFإغلاقButton" />
+                        FontSize="{DynamicResource CloseIconFontSize}"
+                        ToolTip="Close"
+                        AutomationProperties.Name="Close"
+                        Name="WPFCloseButton" />
                 </StackPanel>
             </Grid>
         </Grid>
 
         <TabControl Name="WPFTabNav" Background="Transparent" Width="Auto" Height="Auto" BorderBrush="Transparent" BorderThickness="0" Grid.Row="2" Grid.Column="0" Padding="-1">
-            <TabItem Header="تثبيت" Visibility="Collapsed" Name="WPFTab1">
+            <TabItem Header="Install" Visibility="Collapsed" Name="WPFTab1">
                 <Grid Background="Transparent" >
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -14111,17 +14111,17 @@ $inputXML = @'
                                    VerticalAlignment="Center"
                                    Margin="10,0,10,0"
                                    ToolTip="تصفية حسب الفئة. Ctrl+نقر لاختيار أكثر من فئة."/>
-                        <ToggleButton Name="WPFSearchChipالكل"             Content="الكل"               Style="{StaticResource FilterChipToggleStyle}" IsChecked="True"/>
-                        <ToggleButton Name="WPFSearchChipالمتصفحات"        Content="المتصفحات"          Style="{StaticResource FilterChipToggleStyle}"/>
-                        <ToggleButton Name="WPFSearchChipالتواصل"  Content="التواصل"    Style="{StaticResource FilterChipToggleStyle}"/>
-                        <ToggleButton Name="WPFSearchChipالتطوير"     Content="التطوير"       Style="{StaticResource FilterChipToggleStyle}"/>
-                        <ToggleButton Name="WPFSearchChipالمستندات"        Content="المستندات"          Style="{StaticResource FilterChipToggleStyle}"/>
-                        <ToggleButton Name="WPFSearchChipالألعاب"           Content="الألعاب"             Style="{StaticResource FilterChipToggleStyle}"/>
+                        <ToggleButton Name="WPFSearchChipAll"             Content="الكل"               Style="{StaticResource FilterChipToggleStyle}" IsChecked="True"/>
+                        <ToggleButton Name="WPFSearchChipBrowsers"        Content="المتصفحات"          Style="{StaticResource FilterChipToggleStyle}"/>
+                        <ToggleButton Name="WPFSearchChipCommunications"  Content="التواصل"    Style="{StaticResource FilterChipToggleStyle}"/>
+                        <ToggleButton Name="WPFSearchChipDevelopment"     Content="التطوير"       Style="{StaticResource FilterChipToggleStyle}"/>
+                        <ToggleButton Name="WPFSearchChipDocument"        Content="المستندات"          Style="{StaticResource FilterChipToggleStyle}"/>
+                        <ToggleButton Name="WPFSearchChipGames"           Content="الألعاب"             Style="{StaticResource FilterChipToggleStyle}"/>
                         <ToggleButton Name="WPFSearchChipMicrosoftTools"  Content="أدوات مايكروسوفت"   Style="{StaticResource FilterChipToggleStyle}"/>
                         <ToggleButton Name="WPFSearchChipMultimediaTools" Content="أدوات الوسائط"  Style="{StaticResource FilterChipToggleStyle}"/>
                         <ToggleButton Name="WPFSearchChipProTools"        Content="أدوات احترافية"         Style="{StaticResource FilterChipToggleStyle}"/>
                         <ToggleButton Name="WPFSearchChipSelfhostedTools" Content="أدوات ذاتية الاستضافة"  Style="{StaticResource FilterChipToggleStyle}"/>
-                        <ToggleButton Name="WPFSearchChipالأدوات المساعدة"       Content="الأدوات المساعدة"         Style="{StaticResource FilterChipToggleStyle}"/>
+                        <ToggleButton Name="WPFSearchChipUtilities"       Content="الأدوات المساعدة"         Style="{StaticResource FilterChipToggleStyle}"/>
                     </WrapPanel>
 
                     <Grid Grid.Row="1" Margin="{DynamicResource TabContentMargin}">
@@ -14138,7 +14138,7 @@ $inputXML = @'
                     </Grid>
                 </Grid>
             </TabItem>
-            <TabItem Header="التعديلات" Visibility="Collapsed" Name="WPFTab2">
+            <TabItem Header="Tweaks" Visibility="Collapsed" Name="WPFTab2">
                 <Grid>
                     <!-- Main content area with a ScrollViewer -->
                     <Grid.RowDefinitions>
@@ -14160,9 +14160,9 @@ $inputXML = @'
                                     <Button Name="WPFstandard" Content=" قياسي " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
                                     <Button Name="WPFminimal" Content=" بسيط " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
                                     <Button Name="WPFAdvanced" Content=" متقدم " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
-                                    <Button Name="WPFClearالتعديلاتSelection" Content=" مسح " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
-                                    <Button Name="WPFGetتثبيتedالتعديلات" Content=" Get تثبيتed التعديلات " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
-                                    <Button Name="WPFAppxRemoval" Content=" إزالة إزالة تطبيقات النظام " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
+                                    <Button Name="WPFClearTweaksSelection" Content=" مسح " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
+                                    <Button Name="WPFGetInstalledTweaks" Content=" Get Installed Tweaks " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
+                                    <Button Name="WPFAppxRemoval" Content=" إزالة AppX " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
                                 </WrapPanel>
                             </StackPanel>
 
@@ -14174,7 +14174,7 @@ $inputXML = @'
                                 <StackPanel Background="{DynamicResource MainBackgroundColor}" Orientation="Horizontal" HorizontalAlignment="Left">
                                     <TextBlock Padding="10">
                                         Note: Hover over items to get a better description. Please be careful as many of these tweaks will heavily modify your system.
-                                        <LineBreak/>موصى به selections are for normal users and if you are unsure do NOT check anything else!
+                                        <LineBreak/>Recommended selections are for normal users and if you are unsure do NOT check anything else!
                                     </TextBlock>
                                 </StackPanel>
                             </Border>
@@ -14182,19 +14182,19 @@ $inputXML = @'
                     </ScrollViewer>
                     <Border Grid.Row="1" Background="{DynamicResource MainBackgroundColor}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1" CornerRadius="5" HorizontalAlignment="Stretch" Padding="10">
                         <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="0">
-                            <Button Name="WPFالتعديلاتbutton" Content="Run التعديلات" Margin="5" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
-                            <Button Name="WPFUndoall" Content="Undo Selected التعديلات" Margin="5" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
+                            <Button Name="WPFTweaksbutton" Content="تطبيق التعديلات" Margin="5" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
+                            <Button Name="WPFUndoall" Content="التراجع عن التعديلات المحددة" Margin="5" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
                         </WrapPanel>
                     </Border>
                 </Grid>
             </TabItem>
-            <TabItem Header="الإعداد" Visibility="Collapsed" Name="WPFTab3">
+            <TabItem Header="Config" Visibility="Collapsed" Name="WPFTab3">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="{DynamicResource TabContentMargin}">
                     <Grid Name="featurespanel" Grid.Row="1" Background="Transparent">
                     </Grid>
                 </ScrollViewer>
             </TabItem>
-            <TabItem Header="التحديثات" Visibility="Collapsed" Name="WPFTab4">
+            <TabItem Header="Updates" Visibility="Collapsed" Name="WPFTab4">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="{DynamicResource TabContentMargin}">
                     <Grid Background="Transparent" MaxWidth="1250" HorizontalAlignment="Center">
                         <Grid.RowDefinitions>
@@ -14228,7 +14228,7 @@ $inputXML = @'
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <StackPanel Grid.Row="0" Margin="0,0,0,14">
-                                        <TextBlock Text="موصى به"
+                                        <TextBlock Text="Recommended"
                                                    FontSize="20"
                                                    FontWeight="Bold"
                                                    Foreground="{DynamicResource MainForegroundColor}"/>
@@ -14248,10 +14248,10 @@ $inputXML = @'
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource MainForegroundColor}"/>
                                     </StackPanel>
-                                    <Button Name="WPFالتحديثاتsecurity"
+                                    <Button Name="WPFUpdatessecurity"
                                             Grid.Row="2"
-                                            Content="تطبيق موصى به"
-                                            FontSize="{DynamicResource الإعدادTabButtonFontSize}"
+                                            Content="تطبيق الموصى به"
+                                            FontSize="{DynamicResource ConfigTabButtonFontSize}"
                                             Margin="0,16,0,0"
                                             Padding="10"/>
                                 </Grid>
@@ -14278,16 +14278,16 @@ $inputXML = @'
                                         <TextBlock Text="- إزالة سياسات Windows Update التي طبّقها WinUtil" TextWrapping="Wrap" Margin="0,0,0,7" Foreground="{DynamicResource MainForegroundColor}"/>
                                         <TextBlock Text="- استعادة إعدادات بدء خدمة التحديث" TextWrapping="Wrap" Margin="0,0,0,7" Foreground="{DynamicResource MainForegroundColor}"/>
                                         <TextBlock Text="- إعادة تفعيل المهام المجدولة للتحديث" TextWrapping="Wrap" Margin="0,0,0,12" Foreground="{DynamicResource MainForegroundColor}"/>
-                                        <TextBlock Text="Use this to undo the موصى به or Disable profile."
+                                        <TextBlock Text="استخدم هذا للتراجع عن ملف التعريف الموصى به أو المعطَّل."
                                                    FontSize="11"
                                                    FontStyle="Italic"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource MainForegroundColor}"/>
                                     </StackPanel>
-                                    <Button Name="WPFالتحديثاتdefault"
+                                    <Button Name="WPFUpdatesdefault"
                                             Grid.Row="2"
                                             Content="استعادة الإعدادات الافتراضية"
-                                            FontSize="{DynamicResource الإعدادTabButtonFontSize}"
+                                            FontSize="{DynamicResource ConfigTabButtonFontSize}"
                                             Margin="0,16,0,0"
                                             Padding="10"/>
                                 </Grid>
@@ -14301,7 +14301,7 @@ $inputXML = @'
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <StackPanel Grid.Row="0" Margin="0,0,0,14">
-                                        <TextBlock Text="Disable التحديثات"
+                                        <TextBlock Text="تعطيل التحديثات"
                                                    FontSize="20"
                                                    FontWeight="Bold"
                                                    Foreground="Red"/>
@@ -14321,10 +14321,10 @@ $inputXML = @'
                                                    TextWrapping="Wrap"
                                                    Foreground="Red"/>
                                     </StackPanel>
-                                    <Button Name="WPFالتحديثاتdisable"
+                                    <Button Name="WPFUpdatesdisable"
                                             Grid.Row="2"
-                                            Content="Disable التحديثات"
-                                            FontSize="{DynamicResource الإعدادTabButtonFontSize}"
+                                            Content="تعطيل التحديثات"
+                                            FontSize="{DynamicResource ConfigTabButtonFontSize}"
                                             Foreground="Red"
                                             Margin="0,16,0,0"
                                             Padding="10"/>
@@ -14333,7 +14333,7 @@ $inputXML = @'
                         </UniformGrid>
 
                         <Border Grid.Row="2" Style="{StaticResource BorderStyle}" Margin="8,14,8,8" Padding="12">
-                            <TextBlock Text="Changes apply system-wide. Restart Windows after switching profiles. Use استعادة الإعدادات الافتراضية to undo WinUtil update policies."
+                            <TextBlock Text="Changes apply system-wide. Restart Windows after switching profiles. Use Restore Defaults to undo WinUtil update policies."
                                        TextWrapping="Wrap"
                                        HorizontalAlignment="Center"
                                        Foreground="{DynamicResource MainForegroundColor}"/>
@@ -14366,7 +14366,7 @@ $inputXML = @'
                                     </TextBlock>
                                     <TextBlock FontSize="{DynamicResource FontSize}" Foreground="{DynamicResource MainForegroundColor}"
                                                TextWrapping="Wrap" Margin="0,0,0,6">
-                                        استعراض to your locally saved Windows 11 ISO file. Only official ISOs
+                                        Browse to your locally saved Windows 11 ISO file. Only official ISOs
                                         downloaded from Microsoft are supported.
                                     </TextBlock>
                                     <TextBlock FontSize="{DynamicResource FontSize}" Foreground="{DynamicResource MainForegroundColor}"
@@ -14388,7 +14388,7 @@ $inputXML = @'
                                                  Foreground="{DynamicResource MainForegroundColor}"
                                                  Background="{DynamicResource MainBackgroundColor}"/>
                                         <Button Grid.Column="1"
-                                                Name="WPFWin11ISOاستعراضButton"
+                                                Name="WPFWin11ISOBrowseButton"
                                                 Content="استعراض"
                                                 Width="Auto" Padding="12,0"
                                                 Height="{DynamicResource ButtonHeight}"/>
@@ -14453,7 +14453,7 @@ $inputXML = @'
                                 <StackPanel Grid.Column="0" Margin="0,0,20,0" VerticalAlignment="Top">
                                     <TextBlock FontSize="{DynamicResource FontSize}" FontWeight="Bold"
                                                Foreground="{DynamicResource MainForegroundColor}" Margin="0,0,0,8">
-                                        Step 2 - تحميل وفحص ISO
+                                        Step 2 - Mount &amp; Verify ISO
                                     </TextBlock>
                                     <TextBlock FontSize="{DynamicResource FontSize}"
                                                Foreground="{DynamicResource MainForegroundColor}"
@@ -14536,7 +14536,7 @@ $inputXML = @'
                                         Margin="5"
                                         Visibility="Collapsed"
                                         HorizontalAlignment="Left" MinWidth="{DynamicResource ButtonWidth}">
-                                <!-- Header row: title + Clean & إعادة ضبط button -->
+                                <!-- Header row: title + Clean & Reset button -->
                                 <Grid Margin="0,0,0,12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -14548,8 +14548,8 @@ $inputXML = @'
                                         Step 4 - Output: What would you like to do with the modified image?
                                     </TextBlock>
                                     <Button Grid.Column="1"
-                                            Name="WPFWin11ISOCleanإعادة ضبطButton"
-                                            Content="Clean &amp; إعادة ضبط"
+                                            Name="WPFWin11ISOCleanResetButton"
+                                            Content="مسح وإعادة ضبط"
                                             Foreground="OrangeRed"
                                             Width="Auto" Padding="12,0"
                                             Height="{DynamicResource ButtonHeight}"
@@ -14588,7 +14588,7 @@ $inputXML = @'
                                         <TextBlock FontSize="{DynamicResource FontSize}"
                                                    Foreground="{DynamicResource MainForegroundColor}"
                                                    TextWrapping="Wrap" Margin="0,0,0,8">
-                                            <Run FontWeight="Bold" Foreground="OrangeRed">!! الكل data on the selected USB drive will be permanently erased !!</Run>
+                                            <Run FontWeight="Bold" Foreground="OrangeRed">!! All data on the selected USB drive will be permanently erased !!</Run>
                                             <LineBreak/>
                                             Select a removable USB drive below, then click Erase &amp; Write.
                                         </TextBlock>
@@ -14605,7 +14605,7 @@ $inputXML = @'
                                                       VerticalAlignment="Center"
                                                       Margin="0,0,6,0"/>
                                             <Button Grid.Column="1"
-                                                    Name="WPFWin11ISOتحديثUSBButton"
+                                                    Name="WPFWin11ISORefreshUSBButton"
                                                     Content="تحديث"
                                                     Width="Auto" Padding="8,0"
                                                     Height="{DynamicResource ButtonHeight}"/>
@@ -14651,7 +14651,7 @@ $inputXML = @'
 
                 </Grid>
             </TabItem>
-            <TabItem Header="إزالة تطبيقات النظام" Visibility="Collapsed" Name="WPFTab6">
+            <TabItem Header="AppX" Visibility="Collapsed" Name="WPFTab6">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*" />
@@ -14670,9 +14670,9 @@ $inputXML = @'
                                 <Label Content="التحديدات:" FontSize="{DynamicResource FontSize}" VerticalAlignment="Center" Margin="2"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,2,0,0">
                                     <Button Name="WPFDefaultAppxSelection" Content=" افتراضي " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
-                                    <Button Name="WPFGetتثبيتedAppx" Content=" Get تثبيتed " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
-                                    <Button Name="WPFSelectالكلAppx" Content=" Select الكل " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
-                                    <Button Name="WPFClearAppxSelection" Content=" مسح Selection " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
+                                    <Button Name="WPFGetInstalledAppx" Content=" Get Installed " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
+                                    <Button Name="WPFSelectAllAppx" Content=" تحديد الكل " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
+                                    <Button Name="WPFClearAppxSelection" Content=" مسح التحديد " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
                                 </StackPanel>
                             </StackPanel>
 
@@ -14682,9 +14682,9 @@ $inputXML = @'
                             <Border Grid.Row="2" Style="{StaticResource BorderStyle}" Margin="5,15,5,5">
                                 <StackPanel Background="{DynamicResource MainBackgroundColor}" Orientation="Horizontal" HorizontalAlignment="Left">
                                     <TextBlock Padding="10" TextWrapping="Wrap" Foreground="{DynamicResource MainForegroundColor}">
-                                        Note: Select the Windows إزالة تطبيقات النظام packages you wish to install or remove.
-                                        <LineBreak/>تثبيت Selected registers a local manifest when available, then falls back to the Microsoft Store.
-                                        <LineBreak/>إزالة المحدد removes packages for the current user and all new user profiles.
+                                        Note: Select the Windows AppX packages you wish to install or remove.
+                                        <LineBreak/>Install Selected registers a local manifest when available, then falls back to the Microsoft Store.
+                                        <LineBreak/>Remove Selected removes packages for the current user and all new user profiles.
                                     </TextBlock>
                                 </StackPanel>
                             </Border>
@@ -14693,8 +14693,8 @@ $inputXML = @'
 
                     <Border Grid.Row="1" Background="{DynamicResource MainBackgroundColor}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1" CornerRadius="5" HorizontalAlignment="Stretch" Padding="10">
                         <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
-                            <Button Name="WPFBackToالتعديلات" Content="Back to التعديلات" Margin="5" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
-                            <Button Name="WPFInstallSelectedAppx" Content="تثبيت Selected" Margin="5" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
+                            <Button Name="WPFBackToTweaks" Content="العودة للتعديلات" Margin="5" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
+                            <Button Name="WPFInstallSelectedAppx" Content="Install Selected" Margin="5" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
                             <Button Name="WPFRemoveSelectedAppx" Content="إزالة المحدد" Margin="5" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
                         </WrapPanel>
                     </Border>
@@ -14703,10 +14703,10 @@ $inputXML = @'
         </TabControl>
 
         <!-- Window-level progress indicator - visible regardless of active tab -->
-        <Border Name="WPFالتعديلاتProgressBar" Grid.Row="3" Background="{DynamicResource MainBackgroundColor}" Visibility="Collapsed" Padding="10,6">
+        <Border Name="WPFTweaksProgressBar" Grid.Row="3" Background="{DynamicResource MainBackgroundColor}" Visibility="Collapsed" Padding="10,6">
             <StackPanel Orientation="Vertical">
-                <TextBlock Name="WPFالتعديلاتProgressLabel" Text="" Foreground="{DynamicResource MainForegroundColor}" FontSize="13" Background="Transparent" Margin="0,0,0,4"/>
-                <ProgressBar Name="WPFالتعديلاتProgressValue" Height="6" Minimum="0" Maximum="100" Value="0" Style="{StaticResource RoundedProgressBarStyle}"/>
+                <TextBlock Name="WPFTweaksProgressLabel" Text="" Foreground="{DynamicResource MainForegroundColor}" FontSize="13" Background="Transparent" Margin="0,0,0,4"/>
+                <ProgressBar Name="WPFTweaksProgressValue" Height="6" Minimum="0" Maximum="100" Value="0" Style="{StaticResource RoundedProgressBarStyle}"/>
             </StackPanel>
         </Border>
     </Grid>
@@ -14715,35 +14715,35 @@ $inputXML = @'
 '@
 $WinUtilAutounattendXml = @'
 <?xml version="1.0" encoding="utf-8"?>
-<unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIالإعداد/2002/State">
-    <!--https://schneegans.de/windows/unattend-generator/?LanguageMode=Interactive&ProcessorArchitecture=amd64&BypassRequirementsCheck=true&ComputerNameMode=Random&CompactOsMode=Default&TimeZoneMode=Implicit&PartitionMode=Interactive&DiskAssertionMode=Skip&WindowsEditionMode=Interactive&تثبيتFromMode=Automatic&PEMode=Default&UserAccountMode=InteractiveLocal&PasswordExpirationMode=Unlimited&LockoutMode=Default&HideFiles=Hidden&ClassicContextMenu=true&LaunchToThisPC=true&ShowEndTask=true&TaskbarSearch=Hide&TaskbarIconsMode=Empty&DisableWidgets=true&LeftTaskbar=true&HideTaskViewButton=true&StartTilesMode=Default&StartPinsMode=Empty&EnableLongPaths=true&HideEdgeFre=true&DisableEdgeStartupBoost=true&DeleteWindowsOld=true&EffectsMode=Default&DeleteEdgeDesktopIcon=true&DesktopIconsMode=Default&StartFoldersMode=Default&WifiMode=Skip&Expressالإعدادات=Disableالكل&LockKeysMode=الإعدادure&CapsLockInitial=Off&CapsLockBehavior=Toggle&NumLockInitial=On&NumLockBehavior=Toggle&ScrollLockInitial=Off&ScrollLockBehavior=Toggle&StickyKeysMode=Disabled&ColorMode=Custom&SystemColorTheme=Dark&AppsColorTheme=Dark&AccentColor=%230078d4&WallpaperMode=Default&LockScreenMode=Default&WdacMode=Skip&AppLockerMode=Skip-->
+<unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+    <!--https://schneegans.de/windows/unattend-generator/?LanguageMode=Interactive&ProcessorArchitecture=amd64&BypassRequirementsCheck=true&ComputerNameMode=Random&CompactOsMode=Default&TimeZoneMode=Implicit&PartitionMode=Interactive&DiskAssertionMode=Skip&WindowsEditionMode=Interactive&InstallFromMode=Automatic&PEMode=Default&UserAccountMode=InteractiveLocal&PasswordExpirationMode=Unlimited&LockoutMode=Default&HideFiles=Hidden&ClassicContextMenu=true&LaunchToThisPC=true&ShowEndTask=true&TaskbarSearch=Hide&TaskbarIconsMode=Empty&DisableWidgets=true&LeftTaskbar=true&HideTaskViewButton=true&StartTilesMode=Default&StartPinsMode=Empty&EnableLongPaths=true&HideEdgeFre=true&DisableEdgeStartupBoost=true&DeleteWindowsOld=true&EffectsMode=Default&DeleteEdgeDesktopIcon=true&DesktopIconsMode=Default&StartFoldersMode=Default&WifiMode=Skip&ExpressSettings=DisableAll&LockKeysMode=Configure&CapsLockInitial=Off&CapsLockBehavior=Toggle&NumLockInitial=On&NumLockBehavior=Toggle&ScrollLockInitial=Off&ScrollLockBehavior=Toggle&StickyKeysMode=Disabled&ColorMode=Custom&SystemColorTheme=Dark&AppsColorTheme=Dark&AccentColor=%230078d4&WallpaperMode=Default&LockScreenMode=Default&WdacMode=Skip&AppLockerMode=Skip-->
     <settings pass="offlineServicing"></settings>
     <settings pass="windowsPE">
         <component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
             <UserData>
                 <AcceptEula>true</AcceptEula>
             </UserData>
-            <UseالإعدادurationSet>false</UseالإعدادurationSet>
+            <UseConfigurationSet>false</UseConfigurationSet>
             <RunSynchronous>
                 <RunSynchronousCommand wcm:action="add">
                     <Order>1</Order>
-                    <Path>reg.exe add "HKLM\SYSTEM\Setup\Labالإعداد" /v BypassTPMCheck /t REG_DWORD /d 1 /f</Path>
+                    <Path>reg.exe add "HKLM\SYSTEM\Setup\LabConfig" /v BypassTPMCheck /t REG_DWORD /d 1 /f</Path>
                 </RunSynchronousCommand>
                 <RunSynchronousCommand wcm:action="add">
                     <Order>2</Order>
-                    <Path>reg.exe add "HKLM\SYSTEM\Setup\Labالإعداد" /v BypassSecureBootCheck /t REG_DWORD /d 1 /f</Path>
+                    <Path>reg.exe add "HKLM\SYSTEM\Setup\LabConfig" /v BypassSecureBootCheck /t REG_DWORD /d 1 /f</Path>
                 </RunSynchronousCommand>
                 <RunSynchronousCommand wcm:action="add">
                     <Order>3</Order>
-                    <Path>reg.exe add "HKLM\SYSTEM\Setup\Labالإعداد" /v BypassRAMCheck /t REG_DWORD /d 1 /f</Path>
+                    <Path>reg.exe add "HKLM\SYSTEM\Setup\LabConfig" /v BypassRAMCheck /t REG_DWORD /d 1 /f</Path>
                 </RunSynchronousCommand>
                 <RunSynchronousCommand wcm:action="add">
                     <Order>4</Order>
-                    <Path>reg.exe add "HKLM\SYSTEM\Setup\Labالإعداد" /v BypassCPUCheck /t REG_DWORD /d 1 /f</Path>
+                    <Path>reg.exe add "HKLM\SYSTEM\Setup\LabConfig" /v BypassCPUCheck /t REG_DWORD /d 1 /f</Path>
                 </RunSynchronousCommand>
                 <RunSynchronousCommand wcm:action="add">
                     <Order>5</Order>
-                    <Path>reg.exe add "HKLM\SYSTEM\Setup\Labالإعداد" /v BypassStorageCheck /t REG_DWORD /d 1 /f</Path>
+                    <Path>reg.exe add "HKLM\SYSTEM\Setup\LabConfig" /v BypassStorageCheck /t REG_DWORD /d 1 /f</Path>
                 </RunSynchronousCommand>
             </RunSynchronous>
         </component>
@@ -14808,10 +14808,10 @@ $WinUtilAutounattendXml = @'
     <Extensions xmlns="https://schneegans.de/windows/unattend-generator/">
         <ExtractScript>
 param(
-    [xml]$المستندات
+    [xml]$Document
 );
 
-foreach( $file in $المستندات.unattend.Extensions.File ) {
+foreach( $file in $Document.unattend.Extensions.File ) {
     $path = [System.Environment]::ExpandEnvironmentVariables( $file.GetAttribute( 'path' ) );
     mkdir -Path( $path | Split-Path -Parent ) -ErrorAction 'SilentlyContinue';
     $encoding = switch( [System.IO.Path]::GetExtension( $path ) ) {
@@ -14820,7 +14820,7 @@ foreach( $file in $المستندات.unattend.Extensions.File ) {
         default { [System.Text.Encoding]::Default; }
     };
     $bytes = $encoding.GetPreamble() + $encoding.GetBytes( $file.InnerText.Trim() );
-    [System.IO.File]::WriteالكلBytes( $path, $bytes );
+    [System.IO.File]::WriteAllBytes( $path, $bytes );
 }
         </ExtractScript>
         <File path="C:\Windows\Setup\Scripts\TaskbarLayoutModification.xml">
@@ -14865,25 +14865,25 @@ End If
             &lt;RunLevel&gt;LeastPrivilege&lt;/RunLevel&gt;
         &lt;/Principal&gt;
     &lt;/Principals&gt;
-    &lt;الإعدادات&gt;
+    &lt;Settings&gt;
         &lt;MultipleInstancesPolicy&gt;IgnoreNew&lt;/MultipleInstancesPolicy&gt;
         &lt;DisallowStartIfOnBatteries&gt;false&lt;/DisallowStartIfOnBatteries&gt;
         &lt;StopIfGoingOnBatteries&gt;false&lt;/StopIfGoingOnBatteries&gt;
-        &lt;الكلowHardTerminate&gt;true&lt;/الكلowHardTerminate&gt;
+        &lt;AllowHardTerminate&gt;true&lt;/AllowHardTerminate&gt;
         &lt;StartWhenAvailable&gt;false&lt;/StartWhenAvailable&gt;
         &lt;RunOnlyIfNetworkAvailable&gt;false&lt;/RunOnlyIfNetworkAvailable&gt;
-        &lt;Idleالإعدادات&gt;
+        &lt;IdleSettings&gt;
             &lt;StopOnIdleEnd&gt;true&lt;/StopOnIdleEnd&gt;
             &lt;RestartOnIdle&gt;false&lt;/RestartOnIdle&gt;
-        &lt;/Idleالإعدادات&gt;
-        &lt;الكلowStartOnDemand&gt;true&lt;/الكلowStartOnDemand&gt;
+        &lt;/IdleSettings&gt;
+        &lt;AllowStartOnDemand&gt;true&lt;/AllowStartOnDemand&gt;
         &lt;Enabled&gt;true&lt;/Enabled&gt;
         &lt;Hidden&gt;false&lt;/Hidden&gt;
         &lt;RunOnlyIfIdle&gt;false&lt;/RunOnlyIfIdle&gt;
         &lt;WakeToRun&gt;false&lt;/WakeToRun&gt;
         &lt;ExecutionTimeLimit&gt;PT72H&lt;/ExecutionTimeLimit&gt;
         &lt;Priority&gt;7&lt;/Priority&gt;
-    &lt;/الإعدادات&gt;
+    &lt;/Settings&gt;
     &lt;Actions Context="Author"&gt;
         &lt;Exec&gt;
             &lt;Command&gt;C:\Windows\System32\wscript.exe&lt;/Command&gt;
@@ -14899,7 +14899,7 @@ if( [System.Environment]::OSVersion.Version.Build -lt 20000 ) {
 }
 $key = 'Registry::HKLM\SOFTWARE\Microsoft\PolicyManager\current\device\Start';
 New-Item -Path $key -ItemType 'Directory' -ErrorAction 'SilentlyContinue';
-Set-ItemProperty -LiteralPath $key -Name 'الإعدادureStartPins' -Value $json -Type 'String';
+Set-ItemProperty -LiteralPath $key -Name 'ConfigureStartPins' -Value $json -Type 'String';
         </File>
         <File path="C:\Windows\Setup\Scripts\SetColorTheme.ps1">
 $lightThemeSystem = 0;
@@ -14957,7 +14957,7 @@ $htmlAccentColor = '#0078D4';
         <File path="C:\Windows\Setup\Scripts\Specialize.ps1">
 $scripts = @(
     {
-        reg.exe add "HKLM\SYSTEM\Setup\MoSetup" /v الكلowUpgradesWithUnsupportedTPMOrCPU /t REG_DWORD /d 1 /f;
+        reg.exe add "HKLM\SYSTEM\Setup\MoSetup" /v AllowUpgradesWithUnsupportedTPMOrCPU /t REG_DWORD /d 1 /f;
     };
     {
         net.exe accounts /maxpwage:UNLIMITED;
@@ -14976,14 +14976,14 @@ $scripts = @(
         Remove-Item -LiteralPath 'C:\Users\Public\Desktop\Microsoft Edge.lnk' -ErrorAction 'SilentlyContinue' -Verbose;
     };
     {
-        reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Dsh" /v الكلowNewsAndInterests /t REG_DWORD /d 0 /f;
+        reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Dsh" /v AllowNewsAndInterests /t REG_DWORD /d 0 /f;
     };
     {
         reg.exe add "HKLM\Software\Policies\Microsoft\Edge" /v HideFirstRunExperience /t REG_DWORD /d 1 /f;
     };
     {
-        reg.exe add "HKLM\Software\Policies\Microsoft\Edge\موصى به" /v BackgroundModeEnabled /t REG_DWORD /d 0 /f;
-        reg.exe add "HKLM\Software\Policies\Microsoft\Edge\موصى به" /v StartupBoostEnabled /t REG_DWORD /d 0 /f;
+        reg.exe add "HKLM\Software\Policies\Microsoft\Edge\Recommended" /v BackgroundModeEnabled /t REG_DWORD /d 0 /f;
+        reg.exe add "HKLM\Software\Policies\Microsoft\Edge\Recommended" /v StartupBoostEnabled /t REG_DWORD /d 0 /f;
     };
     {
         &amp; 'C:\Windows\Setup\Scripts\SetStartPins.ps1';
@@ -15050,20 +15050,20 @@ $scripts = @(
         &amp; 'C:\Windows\Setup\Scripts\SetColorTheme.ps1';
     };
     {
-        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\الإعدادات\Windows.SystemToast.Suggested" /f;
-        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\الإعدادات\Windows.SystemToast.Suggested" /v Enabled /t REG_DWORD /d 0 /f;
-        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\الإعدادات\Windows.SystemToast.StartupApp" /f;
-        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\الإعدادات\Windows.SystemToast.StartupApp" /v Enabled /t REG_DWORD /d 0 /f;
-        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\الإعدادات\Microsoft.SkyDrive.Desktop" /f;
-        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\الإعدادات\Microsoft.SkyDrive.Desktop" /v Enabled /t REG_DWORD /d 0 /f;
-        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\الإعدادات\Windows.SystemToast.AccountHealth" /f;
-        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\الإعدادات\Windows.SystemToast.AccountHealth" /v Enabled /t REG_DWORD /d 0 /f;
+        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.Suggested" /f;
+        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.Suggested" /v Enabled /t REG_DWORD /d 0 /f;
+        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.StartupApp" /f;
+        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.StartupApp" /v Enabled /t REG_DWORD /d 0 /f;
+        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\Microsoft.SkyDrive.Desktop" /f;
+        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\Microsoft.SkyDrive.Desktop" /v Enabled /t REG_DWORD /d 0 /f;
+        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.AccountHealth" /f;
+        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.AccountHealth" /v Enabled /t REG_DWORD /d 0 /f;
     };
     {
-        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Start" /v الكلAppsViewMode /t REG_DWORD /d 2 /f;
+        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Start" /v AllAppsViewMode /t REG_DWORD /d 2 /f;
         reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v Start_IrisRecommendations /t REG_DWORD /d 0 /f;
         reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v Start_AccountNotifications /t REG_DWORD /d 0 /f;
-        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Start" /v ShowالكلPinsList /t REG_DWORD /d 0 /f;
+        reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Start" /v ShowAllPinsList /t REG_DWORD /d 0 /f;
         reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Start" /v ShowFrequentList /t REG_DWORD /d 0 /f;
         reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Start" /v ShowRecentList /t REG_DWORD /d 0 /f;
         reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v Start_TrackDocs /t REG_DWORD /d 0 /f;
@@ -15113,7 +15113,7 @@ $scripts = @(
         }
     };
     {
-        reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperالإعدادات" /v TaskbarEndTask /t REG_DWORD /d 1 /f;
+        reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings" /v TaskbarEndTask /t REG_DWORD /d 1 /f;
     };
     {
         reg.exe add "HKU\DefaultUser\Control Panel\Accessibility\StickyKeys" /v Flags /t REG_SZ /d 10 /f;
@@ -15166,7 +15166,7 @@ $scripts = @(
         reg.exe delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" /v DisableWindowsUpdateAccess /f;
         reg.exe delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" /v WUServer /f;
         reg.exe delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" /v WUStatusServer /f;
-        reg.exe delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\الإعداد" /v DODownloadMode /f;
+        reg.exe delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" /v DODownloadMode /f;
         reg.exe add "HKLM\Software\Policies\Microsoft\Windows\OneDrive" /v DisableFileSyncNGSC /t REG_DWORD /d 0 /f;
         reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" /v AppCaptureEnabled /t REG_DWORD /d 0 /f;
         $services = @{ BITS = 'Manual'; wuauserv = 'Manual'; UsoSvc = 'Automatic'; WaaSMedicSvc = 'Manual' };
@@ -15179,8 +15179,8 @@ $scripts = @(
         reg.exe add "HKLM\SOFTWARE\Microsoft\PolicyManager\current\device\Start" /f;
         reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer" /f;
         reg.exe add "HKLM\SOFTWARE\Microsoft\PolicyManager\current\device\Education" /v IsEducationEnvironment /t REG_DWORD /d 1 /f;
-        reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer" /v Hideموصى بهSection /t REG_DWORD /d 1 /f;
-        reg.exe add "HKLM\SOFTWARE\Microsoft\PolicyManager\current\device\Start" /v Hideموصى بهSection /t REG_DWORD /d 1 /f;
+        reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer" /v HideRecommendedSection /t REG_DWORD /d 1 /f;
+        reg.exe add "HKLM\SOFTWARE\Microsoft\PolicyManager\current\device\Start" /v HideRecommendedSection /t REG_DWORD /d 1 /f;
     };
     {
         $recallFeature = Get-WindowsOptionalFeature -Online -ErrorAction SilentlyContinue | Where-Object { $_.State -eq 'Enabled' -and $_.FeatureName -like 'Recall' };
@@ -15284,21 +15284,21 @@ if ($Preset) {
     Invoke-WinUtilAutoRun
 
     # Cleanup and exit
-    إغلاق-WinUtilRunspacePool
+    Close-WinUtilRunspacePool
     [System.GC]::Collect()
     Stop-Transcript
     return
 }
 
-if ($الإعداد) {
+if ($Config) {
     Initialize-WinUtilRunspacePool | Out-Null
 
-    Invoke-WPFImpex -type "import" -الإعداد $الإعداد
+    Invoke-WPFImpex -type "import" -Config $Config
 
     Invoke-WinUtilAutoRun
 
     # Cleanup and exit
-    إغلاق-WinUtilRunspacePool
+    Close-WinUtilRunspacePool
     [System.GC]::Collect()
     Stop-Transcript
     return
@@ -15327,7 +15327,7 @@ try {
 if (-NOT ($readerOperationSuccessful)) {
     Write-Host "Failed to parse xaml content using Windows.Markup.XamlReader's Load Method." -ForegroundColor Red
     Write-Host "Quitting WinUtil..." -ForegroundColor Red
-    إغلاق-WinUtilRunspacePool
+    Close-WinUtilRunspacePool
     [System.GC]::Collect()
     exit 1
 }
@@ -15366,7 +15366,7 @@ Invoke-WinutilThemeChange -theme $sync.preferences.theme
 
 # Build only the default tab before first paint; other tabs initialize on first activation.
 $sync.InitializedTabs = @{}
-Initialize-WinUtilTabContent -TabName "تثبيت"
+Initialize-WinUtilTabContent -TabName "Install"
 
 #===========================================================================
 # Store Form Objects In PowerShell
@@ -15423,7 +15423,7 @@ Set-WinUtilTaskbaritem -state "None"
 $sync["Form"].title = $sync["Form"].title + " " + $sync.version
 # Set the commands that will run when the form is closed
 $sync["Form"].Add_Closing({
-    إغلاق-WinUtilRunspacePool
+    Close-WinUtilRunspacePool
     [System.GC]::Collect()
 })
 
@@ -15434,7 +15434,7 @@ $sync.SearchBarClearButton.Add_Click({
 
     # Focus the search bar after clearing the text
     $sync.SearchBar.Focus()
-    $sync.SearchBar.Selectالكل()
+    $sync.SearchBar.SelectAll()
 })
 
 # add some shortcuts for people that don't like clicking
@@ -15454,10 +15454,10 @@ $commonKeyEvents = {
     if ($_.KeyboardDevice.Modifiers -eq "Alt") {
         $keyEventArgs = $_
         switch ($_.SystemKey) {
-            "I" { Invoke-WPFButton "WPFTab1BT"; $keyEventArgs.Handled = $true } # Navigate to تثبيت tab and suppress Windows Warning Sound
-            "T" { Invoke-WPFButton "WPFTab2BT"; $keyEventArgs.Handled = $true } # Navigate to التعديلات tab
-            "C" { Invoke-WPFButton "WPFTab3BT"; $keyEventArgs.Handled = $true } # Navigate to الإعداد tab
-            "U" { Invoke-WPFButton "WPFTab4BT"; $keyEventArgs.Handled = $true } # Navigate to التحديثات tab
+            "I" { Invoke-WPFButton "WPFTab1BT"; $keyEventArgs.Handled = $true } # Navigate to Install tab and suppress Windows Warning Sound
+            "T" { Invoke-WPFButton "WPFTab2BT"; $keyEventArgs.Handled = $true } # Navigate to Tweaks tab
+            "C" { Invoke-WPFButton "WPFTab3BT"; $keyEventArgs.Handled = $true } # Navigate to Config tab
+            "U" { Invoke-WPFButton "WPFTab4BT"; $keyEventArgs.Handled = $true } # Navigate to Updates tab
             "W" { Invoke-WPFButton "WPFTab5BT"; $keyEventArgs.Handled = $true } # Navigate to Win11ISO tab
         }
     }
@@ -15466,7 +15466,7 @@ $commonKeyEvents = {
         $keyEventArgs = $_
         switch ($_.Key) {
             "F" { $sync.SearchBar.Focus() } # Focus on the search bar
-            "Q" { $this.إغلاق() } # إغلاق the application
+            "Q" { $this.Close() } # Close the application
         }
     }
     $ctrlShiftModifiers = [Windows.Input.ModifierKeys]::Control -bor [Windows.Input.ModifierKeys]::Shift
@@ -15484,7 +15484,7 @@ $sync["Form"].Add_PreviewMouseWheel({
 })
 
 $sync["Form"].Add_MouseLeftButtonDown({
-    Invoke-WPFPopup -Action "Hide" -Popups @("الإعدادات", "Theme", "FontScaling")
+    Invoke-WPFPopup -Action "Hide" -Popups @("Settings", "Theme", "FontScaling")
     $sync["Form"].DragMove()
 })
 
@@ -15501,7 +15501,7 @@ $sync["Form"].Add_MouseDoubleClick({
 })
 
 $sync["Form"].Add_Deactivated({
-    Invoke-WPFPopup -Action "Hide" -Popups @("الإعدادات", "Theme", "FontScaling")
+    Invoke-WPFPopup -Action "Hide" -Popups @("Settings", "Theme", "FontScaling")
 })
 
 $sync["Form"].Add_ContentRendered({
@@ -15537,20 +15537,20 @@ $sync["Form"].Add_ContentRendered({
         $sync.WPFInstall.IsEnabled = $false
         $sync.WPFUninstall.IsEnabled = $false
         $sync.WPFInstallUpgrade.IsEnabled = $false
-        $sync.WPFGetتثبيتed.IsEnabled = $false
+        $sync.WPFGetInstalled.IsEnabled = $false
 
         # Show offline indicator
-        Write-Host "Offline mode detected - تثبيت tab disabled." -ForegroundColor Yellow
+        Write-Host "Offline mode detected - Install tab disabled." -ForegroundColor Yellow
 
         # Optionally switch to a different tab if install tab was going to be default
-        Invoke-WPFTab "WPFTab2BT"  # Switch to التعديلات tab instead
+        Invoke-WPFTab "WPFTab2BT"  # Switch to Tweaks tab instead
     }
     else {
         # Online - ensure install tab is enabled
         $sync.WPFTab1BT.IsEnabled = $true
         $sync.WPFTab1BT.Opacity = 1.0
         $sync.WPFTab1BT.ToolTip = $null
-        Invoke-WPFTab "WPFTab1BT"  # افتراضي to install tab
+        Invoke-WPFTab "WPFTab1BT"  # Default to install tab
     }
 
     $sync["Form"].Focus()
@@ -15568,14 +15568,14 @@ $searchBarTimer.IsEnabled = $false
 $searchBarTimer.add_Tick({
     $searchBarTimer.Stop()
     switch ($sync.currentTab) {
-        "تثبيت" {
+        "Install" {
             Find-AppsByNameOrDescription -SearchString $sync.SearchBar.Text -Categories $sync.SelectedAppCategories.ToArray()
         }
-        "التعديلات" {
-            Find-التعديلاتByNameOrDescription -SearchString $sync.SearchBar.Text
+        "Tweaks" {
+            Find-TweaksByNameOrDescription -SearchString $sync.SearchBar.Text
         }
-        "إزالة تطبيقات النظام" {
-            Find-التعديلاتByNameOrDescription -SearchString $sync.SearchBar.Text
+        "AppX" {
+            Find-TweaksByNameOrDescription -SearchString $sync.SearchBar.Text
         }
     }
 })
@@ -15596,17 +15596,17 @@ $sync["SearchBar"].Add_TextChanged({
 
 # Category filter chips. The chip carries its category in Tag, so one handler covers all of them.
 $sync.AppCategoryChips = @(
-    @{ Name = "WPFSearchChipالكل";             Category = "" }
-    @{ Name = "WPFSearchChipالمتصفحات";        Category = "المتصفحات" }
-    @{ Name = "WPFSearchChipالتواصل";  Category = "التواصل" }
-    @{ Name = "WPFSearchChipالتطوير";     Category = "التطوير" }
-    @{ Name = "WPFSearchChipالمستندات";        Category = "المستندات" }
-    @{ Name = "WPFSearchChipالألعاب";           Category = "الألعاب" }
-    @{ Name = "WPFSearchChipMicrosoftTools";  Category = "أدوات مايكروسوفت" }
-    @{ Name = "WPFSearchChipMultimediaTools"; Category = "أدوات الوسائط" }
-    @{ Name = "WPFSearchChipProTools";        Category = "أدوات احترافية" }
-    @{ Name = "WPFSearchChipSelfhostedTools"; Category = "أدوات ذاتية الاستضافة" }
-    @{ Name = "WPFSearchChipالأدوات المساعدة";       Category = "الأدوات المساعدة" }
+    @{ Name = "WPFSearchChipAll";             Category = "" }
+    @{ Name = "WPFSearchChipBrowsers";        Category = "Browsers" }
+    @{ Name = "WPFSearchChipCommunications";  Category = "Communications" }
+    @{ Name = "WPFSearchChipDevelopment";     Category = "Development" }
+    @{ Name = "WPFSearchChipDocument";        Category = "Document" }
+    @{ Name = "WPFSearchChipGames";           Category = "Games" }
+    @{ Name = "WPFSearchChipMicrosoftTools";  Category = "Microsoft Tools" }
+    @{ Name = "WPFSearchChipMultimediaTools"; Category = "Multimedia Tools" }
+    @{ Name = "WPFSearchChipProTools";        Category = "Pro Tools" }
+    @{ Name = "WPFSearchChipSelfhostedTools"; Category = "Selfhosted Tools" }
+    @{ Name = "WPFSearchChipUtilities";       Category = "Utilities" }
 )
 $sync.SelectedAppCategories = [System.Collections.Generic.List[string]]::new()
 
@@ -15614,17 +15614,17 @@ foreach ($appCategoryChip in $sync.AppCategoryChips) {
     $sync[$appCategoryChip.Name].Tag = $appCategoryChip.Category
 }
 
-$sync["WPFSearchChipالكل"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
-$sync["WPFSearchChipالمتصفحات"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
-$sync["WPFSearchChipالتواصل"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
-$sync["WPFSearchChipالتطوير"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
-$sync["WPFSearchChipالمستندات"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
-$sync["WPFSearchChipالألعاب"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
+$sync["WPFSearchChipAll"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
+$sync["WPFSearchChipBrowsers"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
+$sync["WPFSearchChipCommunications"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
+$sync["WPFSearchChipDevelopment"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
+$sync["WPFSearchChipDocument"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
+$sync["WPFSearchChipGames"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
 $sync["WPFSearchChipMicrosoftTools"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
 $sync["WPFSearchChipMultimediaTools"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
 $sync["WPFSearchChipProTools"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
 $sync["WPFSearchChipSelfhostedTools"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
-$sync["WPFSearchChipالأدوات المساعدة"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
+$sync["WPFSearchChipUtilities"].Add_Click({ Invoke-WinUtilAppCategoryChip -Chip $this })
 
 $sync["Form"].Add_Loaded({
     param($e)
@@ -15645,7 +15645,7 @@ $sync["Form"].Add_Activated({
 })
 
 $sync["ThemeButton"].Add_Click({
-    Invoke-WPFPopup -PopupActionTable @{ "الإعدادات" = "Hide"; "Theme" = "Toggle"; "FontScaling" = "Hide" }
+    Invoke-WPFPopup -PopupActionTable @{ "Settings" = "Hide"; "Theme" = "Toggle"; "FontScaling" = "Hide" }
 })
 $sync["AutoThemeMenuItem"].Add_Click({
     Invoke-WPFPopup -Action "Hide" -Popups @("Theme")
@@ -15660,19 +15660,19 @@ $sync["LightThemeMenuItem"].Add_Click({
     Invoke-WinutilThemeChange -theme "Light"
 })
 
-$sync["الإعداداتButton"].Add_Click({
-    Invoke-WPFPopup -PopupActionTable @{ "الإعدادات" = "Toggle"; "Theme" = "Hide"; "FontScaling" = "Hide" }
+$sync["SettingsButton"].Add_Click({
+    Invoke-WPFPopup -PopupActionTable @{ "Settings" = "Toggle"; "Theme" = "Hide"; "FontScaling" = "Hide" }
 })
-$sync["استيرادMenuItem"].Add_Click({
-    Invoke-WPFPopup -Action "Hide" -Popups @("الإعدادات")
+$sync["ImportMenuItem"].Add_Click({
+    Invoke-WPFPopup -Action "Hide" -Popups @("Settings")
     Invoke-WPFImpex -type "import"
 })
-$sync["تصديرMenuItem"].Add_Click({
-    Invoke-WPFPopup -Action "Hide" -Popups @("الإعدادات")
+$sync["ExportMenuItem"].Add_Click({
+    Invoke-WPFPopup -Action "Hide" -Popups @("Settings")
     Invoke-WPFImpex -type "export"
 })
-$sync["حول البرنامجMenuItem"].Add_Click({
-    Invoke-WPFPopup -Action "Hide" -Popups @("الإعدادات")
+$sync["AboutMenuItem"].Add_Click({
+    Invoke-WPFPopup -Action "Hide" -Popups @("Settings")
 
     $authorInfo = @"
 Author   : <a href="https://github.com/ChrisTitusTech">@ChrisTitusTech</a>
@@ -15681,33 +15681,33 @@ Runspace : <a href="https://github.com/DeveloperDurp">@DeveloperDurp</a>, <a hre
 GitHub   : <a href="https://github.com/ChrisTitusTech/winutil">ChrisTitusTech/winutil</a>
 Version  : <a href="https://github.com/ChrisTitusTech/winutil/releases/tag/$($sync.version)">$($sync.version)</a>
 "@
-    Show-CustomDialog -Title "حول البرنامج" -Message $authorInfo
+    Show-CustomDialog -Title "About" -Message $authorInfo
 })
-$sync["التوثيقMenuItem"].Add_Click({
-    Invoke-WPFPopup -Action "Hide" -Popups @("الإعدادات")
+$sync["DocumentationMenuItem"].Add_Click({
+    Invoke-WPFPopup -Action "Hide" -Popups @("Settings")
     Start-Process "https://winutil.christitus.com/"
 })
 $sync["SponsorMenuItem"].Add_Click({
-    Invoke-WPFPopup -Action "Hide" -Popups @("الإعدادات")
+    Invoke-WPFPopup -Action "Hide" -Popups @("Settings")
 
     $authorInfo = @"
 <a href="https://github.com/sponsors/ChrisTitusTech">Current sponsors for ChrisTitusTech:</a>
 "@
     $authorInfo += "`n"
     try {
-        $sponsors = Invoke-WinUtilالرعاة
+        $sponsors = Invoke-WinUtilSponsors
         foreach ($sponsor in $sponsors) {
             $authorInfo += "<a href=`"https://github.com/sponsors/ChrisTitusTech`">$sponsor</a>`n"
         }
     } catch {
         $authorInfo += "An error occurred while fetching or processing the sponsors: $_`n"
     }
-    Show-CustomDialog -Title "الرعاة" -Message $authorInfo -EnableScroll $true
+    Show-CustomDialog -Title "Sponsors" -Message $authorInfo -EnableScroll $true
 })
 
-# حجم الخط Event Handlers
+# Font Scaling Event Handlers
 $sync["FontScalingButton"].Add_Click({
-    Invoke-WPFPopup -PopupActionTable @{ "الإعدادات" = "Hide"; "Theme" = "Hide"; "FontScaling" = "Toggle" }
+    Invoke-WPFPopup -PopupActionTable @{ "Settings" = "Hide"; "Theme" = "Hide"; "FontScaling" = "Toggle" }
 })
 
 $sync["FontScalingSlider"].Add_ValueChanged({
@@ -15716,12 +15716,12 @@ $sync["FontScalingSlider"].Add_ValueChanged({
     $sync.FontScalingValue.Text = "$percentage%"
 })
 
-$sync["FontScalingإعادة ضبطButton"].Add_Click({
+$sync["FontScalingResetButton"].Add_Click({
     $sync.FontScalingSlider.Value = 1.0
     $sync.FontScalingValue.Text = "100%"
 })
 
-$sync["FontScalingتطبيقButton"].Add_Click({
+$sync["FontScalingApplyButton"].Add_Click({
     $scaleFactor = $sync.FontScalingSlider.Value
     Invoke-WinUtilFontScaling -ScaleFactor $scaleFactor
     Invoke-WPFPopup -Action "Hide" -Popups @("FontScaling")
@@ -15729,8 +15729,8 @@ $sync["FontScalingتطبيقButton"].Add_Click({
 
 # ── Win11ISO Tab button handlers ──────────────────────────────────────────────
 
-$sync["WPFWin11ISOاستعراضButton"].Add_Click({
-    Invoke-WinUtilISOاستعراض
+$sync["WPFWin11ISOBrowseButton"].Add_Click({
+    Invoke-WinUtilISOBrowse
 })
 
 $sync["WPFWin11ISODownloadLink"].Add_Click({
@@ -15747,32 +15747,32 @@ $sync["WPFWin11ISOModifyButton"].Add_Click({
 
 $sync["WPFWin11ISOChooseISOButton"].Add_Click({
     $sync["WPFWin11ISOOptionUSB"].Visibility = "Collapsed"
-    Invoke-WinUtilISOتصدير
+    Invoke-WinUtilISOExport
 })
 
 $sync["WPFWin11ISOChooseUSBButton"].Add_Click({
     $sync["WPFWin11ISOOptionUSB"].Visibility = "Visible"
-    Invoke-WinUtilISOتحديثUSBDrives
+    Invoke-WinUtilISORefreshUSBDrives
 })
 
-$sync["WPFWin11ISOتحديثUSBButton"].Add_Click({
-    Invoke-WinUtilISOتحديثUSBDrives
+$sync["WPFWin11ISORefreshUSBButton"].Add_Click({
+    Invoke-WinUtilISORefreshUSBDrives
 })
 
 $sync["WPFWin11ISOWriteUSBButton"].Add_Click({
     Invoke-WinUtilISOWriteUSB
 })
 
-$sync["WPFWin11ISOCleanإعادة ضبطButton"].Add_Click({
-    Invoke-WinUtilISOCleanAndإعادة ضبط
+$sync["WPFWin11ISOCleanResetButton"].Add_Click({
+    Invoke-WinUtilISOCleanAndReset
 })
 
 function Remove-WinUtilTempScript {
     <#
-    .ملخص
+    .SYNOPSIS
         Removes the temporary script downloaded by windev.ps1.
 
-    .وصف
+    .DESCRIPTION
         Deletes the current script only when it is a winutil-*.ps1 file in
         the system temporary directory. This preserves normal file-backed
         and in-memory WinUtil launches.
