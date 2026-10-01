@@ -10152,7 +10152,7 @@ $sync.configs.appnavigation = @'
 $sync.configs.appx = @'
 {
   "WPFAppxMicrosoft_WindowsFeedbackHub": {
-    "Category": "Microsoft Apps",
+    "Category": "تطبيقات مايكروسوفت",
     "Content": "Feedback Hub",
     "Description": "Allows users to submit bug reports, feature suggestions, and diagnostic data directly to Microsoft.",
     "Panel": "0",
@@ -10160,7 +10160,7 @@ $sync.configs.appx = @'
     "StoreId": "9NBLGGH4R32N"
   },
   "WPFAppxMicrosoft_GetHelp": {
-    "Category": "Microsoft Apps",
+    "Category": "تطبيقات مايكروسوفت",
     "Content": "Get Help",
     "Description": "Provides access to automated troubleshooting guides, support documentation, and direct Microsoft customer assistance.",
     "Panel": "0",
@@ -10168,7 +10168,7 @@ $sync.configs.appx = @'
     "StoreId": "9PKDZBMV1H3T"
   },
   "WPFAppxMicrosoft_OutlookForWindows": {
-    "Category": "Microsoft Apps",
+    "Category": "تطبيقات مايكروسوفت",
     "Content": "Outlook for Windows",
     "Description": "Provides modern email management, calendar scheduling, and contact organization features.",
     "Panel": "0",
@@ -10176,7 +10176,7 @@ $sync.configs.appx = @'
     "StoreId": "9NRX63209R7B"
   },
   "WPFAppxMSTeams": {
-    "Category": "Microsoft Apps",
+    "Category": "تطبيقات مايكروسوفت",
     "Content": "Microsoft Teams",
     "Description": "Facilitates instant messaging, video conferencing, file sharing, and workspace collaboration.",
     "Panel": "0",
@@ -10184,7 +10184,7 @@ $sync.configs.appx = @'
     "StoreId": "XP8BT8DW290MPQ"
   },
   "WPFAppxClipchamp_Clipchamp": {
-    "Category": "Utilities & Productivity",
+    "Category": "الأدوات والإنتاجية",
     "Content": "Clipchamp",
     "Description": "Provides a user-friendly video editor with built-in templates, effects, and timeline editing tools.",
     "Panel": "0",
@@ -10192,7 +10192,7 @@ $sync.configs.appx = @'
     "StoreId": "9P1J8S7CCWWT"
   },
   "WPFAppxMicrosoft_MicrosoftOfficeHub": {
-    "Category": "Microsoft Apps",
+    "Category": "تطبيقات مايكروسوفت",
     "Content": "Microsoft 365",
     "Description": "Serves as a centralized launcher and dashboard for accessing cloud-based Microsoft 365 apps and recent documents.",
     "Panel": "0",
@@ -10200,7 +10200,7 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRD29V9"
   },
   "WPFAppxMicrosoft_ZuneMusic": {
-    "Category": "Utilities & Productivity",
+    "Category": "الأدوات والإنتاجية",
     "Content": "Media Player",
     "Description": "Plays local audio and video files with modern playlist management and casting capabilities.",
     "Panel": "0",
@@ -10208,7 +10208,7 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRFJ3PT"
   },
   "WPFAppxMicrosoft_BingSearch": {
-    "Category": "Bing & Web Services",
+    "Category": "Bing وخدمات الويب",
     "Content": "Bing Search",
     "Description": "Integrates Microsoft Bing search capabilities and web services directly into the operating system.",
     "Panel": "1",
@@ -10216,7 +10216,7 @@ $sync.configs.appx = @'
     "StoreId": "9NZBF4GT040C"
   },
   "WPFAppxMicrosoftCorporationII_QuickAssist": {
-    "Category": "Utilities & Productivity",
+    "Category": "الأدوات والإنتاجية",
     "Content": "Quick Assist",
     "Description": "Enables secure remote technical support and screen sharing over an internet connection.",
     "Panel": "0",
@@ -10224,7 +10224,7 @@ $sync.configs.appx = @'
     "StoreId": "9P7BP5VNWKX5"
   },
   "WPFAppxMicrosoft_WindowsDevHome": {
-    "Category": "Developer Tools",
+    "Category": "أدوات المطورين",
     "Content": "Dev Home",
     "Description": "Provides a specialized dashboard for software developer environment setups, repository syncing, and hardware widgets.",
     "Panel": "1",
@@ -10232,7 +10232,7 @@ $sync.configs.appx = @'
     "StoreId": "9N8MHTPHNGVV"
   },
   "WPFAppxMicrosoft_WindowsCrossDevice": {
-    "Category": "Microsoft Ecosystem",
+    "Category": "نظام مايكروسوفت البيئي",
     "Content": "Mobile Devices",
     "Description": "Manages system-level background connectivity with paired mobile devices. Removing this may disable cross-device features such as phone screen mirroring, file transfer, and mobile hotspot handoff integrated into Windows Settings.",
     "Panel": "0",
@@ -10240,7 +10240,7 @@ $sync.configs.appx = @'
     "StoreId": "9NTXGKQ8P7N0"
   },
   "WPFAppxMicrosoft_Todos": {
-    "Category": "Utilities & Productivity",
+    "Category": "الأدوات والإنتاجية",
     "Content": "To Do",
     "Description": "Creates, tracks, and synchronizes personal tasks, smart lists, and daily reminders.",
     "Panel": "0",
@@ -10248,7 +10248,7 @@ $sync.configs.appx = @'
     "StoreId": "9NBLGGH5R558"
   },
   "WPFAppxMicrosoft_PowerAutomateDesktop": {
-    "Category": "Developer Tools",
+    "Category": "أدوات المطورين",
     "Content": "Power Automate",
     "Description": "Automates repetitive workflows and desktop tasks using low-code visual scripting.",
     "Panel": "1",
@@ -10256,7 +10256,7 @@ $sync.configs.appx = @'
     "StoreId": "9NFTCH6J7FHV"
   },
   "WPFAppxMicrosoft_YourPhone": {
-    "Category": "Microsoft Ecosystem",
+    "Category": "نظام مايكروسوفت البيئي",
     "Content": "Phone Link",
     "Description": "Synchronizes text messages, phone notifications, photos, and calls from a mobile device to the desktop.",
     "Panel": "0",
@@ -10264,7 +10264,7 @@ $sync.configs.appx = @'
     "StoreId": "9NMPJ99VJBWV"
   },
   "WPFAppxMicrosoft_MicrosoftStickyNotes": {
-    "Category": "Utilities & Productivity",
+    "Category": "الأدوات والإنتاجية",
     "Content": "Sticky Notes",
     "Description": "Creates quick, floating text notes on the desktop that automatically sync across devices.",
     "Panel": "0",
@@ -10272,7 +10272,7 @@ $sync.configs.appx = @'
     "StoreId": "9NBLGGH4QGHW"
   },
   "WPFAppxMicrosoft_WindowsSoundRecorder": {
-    "Category": "Utilities & Productivity",
+    "Category": "الأدوات والإنتاجية",
     "Content": "Sound Recorder",
     "Description": "Records and trims live audio inputs with simple microphone adjustment controls.",
     "Panel": "0",
@@ -10280,7 +10280,7 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRFHWKN"
   },
   "WPFAppxMicrosoft_WindowsAlarms": {
-    "Category": "Utilities & Productivity",
+    "Category": "الأدوات والإنتاجية",
     "Content": "Clock",
     "Description": "Features world clocks, alarms, countdown timers, stopwatches, and dedicated focus session tracking.",
     "Panel": "0",
@@ -10288,7 +10288,7 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRFJ3PR"
   },
   "WPFAppxMicrosoft_Paint": {
-    "Category": "Utilities & Productivity",
+    "Category": "الأدوات والإنتاجية",
     "Content": "Paint",
     "Description": "Provides built-in digital sketching, basic image editing, and pixel-level graphic manipulation tools.",
     "Panel": "0",
@@ -10296,7 +10296,7 @@ $sync.configs.appx = @'
     "StoreId": "9PCFS5B6T72H"
   },
   "WPFAppxMicrosoft_WindowsNotepad": {
-    "Category": "Utilities & Productivity",
+    "Category": "الأدوات والإنتاجية",
     "Content": "Notepad",
     "Description": "Provides a lightweight text editor with multi-tab support for plain text files and code snippets.",
     "Panel": "0",
@@ -10304,7 +10304,7 @@ $sync.configs.appx = @'
     "StoreId": "9MSMLRH6LZF3"
   },
   "WPFAppxMicrosoft_ScreenSketch": {
-    "Category": "Utilities & Productivity",
+    "Category": "الأدوات والإنتاجية",
     "Content": "Snipping Tool",
     "Description": "Captures screenshots or screen recordings with built-in markup, image cropping, and optical character recognition (OCR).",
     "Panel": "0",
@@ -10312,7 +10312,7 @@ $sync.configs.appx = @'
     "StoreId": "9MZ95KL8MR0L"
   },
   "WPFAppxMicrosoft_Copilot": {
-    "Category": "Bing & Web Services",
+    "Category": "Bing وخدمات الويب",
     "Content": "Copilot",
     "Description": "Launches the Microsoft AI companion for contextual answers, creative writing assistance, and intelligent web search.",
     "Panel": "1",
@@ -10320,7 +10320,7 @@ $sync.configs.appx = @'
     "StoreId": "9NHT9RB2F4HD"
   },
   "WPFAppxMicrosoft_WindowsCalculator": {
-    "Category": "Utilities & Productivity",
+    "Category": "الأدوات والإنتاجية",
     "Content": "Calculator",
     "Description": "Performs standard arithmetic, scientific operations, programming calculations, and unit conversions.",
     "Panel": "0",
@@ -10328,7 +10328,7 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRFHVN5"
   },
   "WPFAppxMicrosoft_WindowsCamera": {
-    "Category": "Utilities & Productivity",
+    "Category": "الأدوات والإنتاجية",
     "Content": "Camera",
     "Description": "Captures photographs and records video files via connected webcams or imaging hardware.",
     "Panel": "0",
@@ -10336,7 +10336,7 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRFJBBG"
   },
   "WPFAppxMicrosoft_WindowsPhotos": {
-    "Category": "Utilities & Productivity",
+    "Category": "الأدوات والإنتاجية",
     "Content": "Photos",
     "Description": "Organizes, views, and crops local images with basic color adjustment and album creation tools.",
     "Panel": "0",
@@ -10344,7 +10344,7 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRFJBH4"
   },
   "WPFAppxMicrosoft_BingNews": {
-    "Category": "Bing & Web Services",
+    "Category": "Bing وخدمات الويب",
     "Content": "News",
     "Description": "Aggregates breaking news headlines, personalized article feeds, and world current events.",
     "Panel": "1",
@@ -10352,7 +10352,7 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRFHVFW"
   },
   "WPFAppxMicrosoft_BingWeather": {
-    "Category": "Bing & Web Services",
+    "Category": "Bing وخدمات الويب",
     "Content": "Weather",
     "Description": "Displays local real-time weather tracking, radar maps, and historical meteorological forecasts.",
     "Panel": "1",
@@ -10360,7 +10360,7 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRFJ3Q2"
   },
   "WPFAppxMicrosoft_GamingApp": {
-    "Category": "Xbox & Gaming",
+    "Category": "Xbox والألعاب",
     "Content": "Xbox App",
     "Description": "Serves as the primary gaming library manager, social community interface, and PC Game Pass dashboard.",
     "Panel": "1",
@@ -10368,7 +10368,7 @@ $sync.configs.appx = @'
     "StoreId": "9MV0B5HZVK9Z"
   },
   "WPFAppxMicrosoft_XboxGamingOverlay": {
-    "Category": "Xbox & Gaming",
+    "Category": "Xbox والألعاب",
     "Content": "Xbox Game Bar",
     "Description": "Provides customizable in-game status widgets, audio balancing sliders, system monitoring tools, and gameplay recording.",
     "Panel": "1",
@@ -10376,7 +10376,7 @@ $sync.configs.appx = @'
     "StoreId": "9NZKPSTSNW4P"
   },
   "WPFAppxMicrosoft_XboxIdentityProvider": {
-    "Category": "Xbox & Gaming",
+    "Category": "Xbox والألعاب",
     "Content": "Xbox Identity Provider",
     "Description": "Manages Xbox network user authentication and background account validation for connected titles. Warning: removing this may break Microsoft account sign-in for non-Xbox games and apps that rely on this authentication pipeline.",
     "Panel": "1",
@@ -10384,21 +10384,21 @@ $sync.configs.appx = @'
     "StoreId": "9WZDNCRD1HKW"
   },
   "WPFAppxMicrosoft_XboxSpeechToTextOverlay": {
-    "Category": "Xbox & Gaming",
+    "Category": "Xbox والألعاب",
     "Content": "Xbox Speech To Text Overlay",
     "Description": "Provides system-level live accessibility captions and voice-to-text translation for gaming chat networks.",
     "Panel": "1",
     "PackageId": "Microsoft.XboxSpeechToTextOverlay"
   },
   "WPFAppxMicrosoft_Xbox_TCUI": {
-    "Category": "Xbox & Gaming",
+    "Category": "Xbox والألعاب",
     "Content": "Xbox TCUI",
     "Description": "Provides core account connection UI modules for single sign-on flows within game titles. Warning: removing this may break Microsoft account authentication in games and apps that do not otherwise require the Xbox app.",
     "Panel": "1",
     "PackageId": "Microsoft.Xbox.TCUI"
   },
   "WPFAppxMicrosoft_StartExperiencesApp": {
-    "Category": "Bing & Web Services",
+    "Category": "Bing وخدمات الويب",
     "Content": "Start Experiences App",
     "Description": "Powers the Windows Widgets board, delivering a personalized feed of news, weather, sports, and finance content.",
     "Panel": "1",
@@ -10406,7 +10406,7 @@ $sync.configs.appx = @'
     "StoreId": "9PC1H9VN18CM"
   },
   "WPFAppxMicrosoft_MicrosoftSolitaireCollection": {
-    "Category": "Xbox & Gaming",
+    "Category": "Xbox والألعاب",
     "Content": "Solitaire Collection",
     "Description": "Bundles built-in card game modes including Klondike, Spider, FreeCell, Pyramid, and TriPeaks alongside daily challenges.",
     "Panel": "1",
@@ -10531,9 +10531,9 @@ $sync.configs.dns = @'
 $sync.configs.feature = @'
 {
   "WPFFeaturesdotnet": {
-    "Content": ".NET Framework (Versions 2, 3, 4) - Enable",
+    "Content": ".NET Framework (Versions 2, 3, 4) - تفعيل",
     "Description": ".NET and .NET Framework is a developer platform made up of tools, programming languages, and libraries for building many different types of applications.",
-    "category": "Features",
+    "category": "ميزات",
     "panel": "1",
     "feature": [
       "NetFx4-AdvSrvs",
@@ -10543,9 +10543,9 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/features/dotnet"
   },
   "WPFFixesNTPPool": {
-    "Content": "NTP Server - Enable",
+    "Content": "NTP Server - تفعيل",
     "Description": "Replaces the default Windows NTP server (time.windows.com) with pool.ntp.org for improved time synchronization accuracy and reliability.",
-    "category": "Fixes",
+    "category": "إصلاحات",
     "panel": "1",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10553,9 +10553,9 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/fixes/ntppool"
   },
   "WPFFeatureshyperv": {
-    "Content": "Hyper-V - Enable",
+    "Content": "Hyper-V - تفعيل",
     "Description": "Hyper-V is a hardware virtualization product developed by Microsoft that allows users to create and manage virtual machines.",
-    "category": "Features",
+    "category": "ميزات",
     "panel": "1",
     "feature": [
       "Microsoft-Hyper-V-All"
@@ -10563,9 +10563,9 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/features/hyperv"
   },
   "WPFFeatureslegacymedia": {
-    "Content": "Legacy Media Components (WMP, DirectPlay) - Enable",
+    "Content": "Legacy Media Components (WMP, DirectPlay) - تفعيل",
     "Description": "Enables legacy programs from previous versions of Windows.",
-    "category": "Features",
+    "category": "ميزات",
     "panel": "1",
     "feature": [
       "WindowsMediaPlayer",
@@ -10577,9 +10577,9 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/features/legacymedia"
   },
   "WPFFeaturewsl": {
-    "Content": "Windows Subsystem for Linux (WSL) - Enable",
+    "Content": "Windows Subsystem for Linux (WSL) - تفعيل",
     "Description": "Windows Subsystem for Linux is an optional feature of Windows that allows Linux programs to run natively on Windows without the need for a separate virtual machine or dual booting.",
-    "category": "Features",
+    "category": "ميزات",
     "panel": "1",
     "feature": [
       "VirtualMachinePlatform",
@@ -10589,9 +10589,9 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/features/wsl"
   },
   "WPFFeaturenfs": {
-    "Content": "Network File System (NFS) - Enable",
+    "Content": "Network File System (NFS) - تفعيل",
     "Description": "Network File System (NFS) is a mechanism for storing files on a network.",
-    "category": "Features",
+    "category": "ميزات",
     "panel": "1",
     "feature": [
       "ServicesForNFS-ClientOnly",
@@ -10608,9 +10608,9 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/features/nfs"
   },
   "WPFFeatureRegBackup": {
-    "Content": "Registry Backup (Daily Task 12:30am) - Enable",
+    "Content": "Registry Backup (Daily Task 12:30am) - تفعيل",
     "Description": "Enables daily registry backup, previously disabled by Microsoft in Windows 10 1803.",
-    "category": "Features",
+    "category": "ميزات",
     "panel": "1",
     "feature": [],
     "InvokeScript": [
@@ -10619,9 +10619,9 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/features/regbackup"
   },
   "WPFFeatureEnableLegacyRecovery": {
-    "Content": "Legacy F8 Boot Recovery - Enable",
+    "Content": "Legacy F8 Boot Recovery - تفعيل",
     "Description": "Enables Advanced Boot Options screen that lets you start Windows in advanced troubleshooting modes.",
-    "category": "Features",
+    "category": "ميزات",
     "panel": "1",
     "feature": [],
     "InvokeScript": [
@@ -10630,9 +10630,9 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/features/enablelegacyrecovery"
   },
   "WPFFeatureDisableLegacyRecovery": {
-    "Content": "Legacy F8 Boot Recovery - Disable",
+    "Content": "Legacy F8 Boot Recovery - تعطيل",
     "Description": "Disables Advanced Boot Options screen that lets you start Windows in advanced troubleshooting modes.",
-    "category": "Features",
+    "category": "ميزات",
     "panel": "1",
     "feature": [],
     "InvokeScript": [
@@ -10641,9 +10641,9 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/features/disablelegacyrecovery"
   },
   "WPFFeaturesSandbox": {
-    "Content": "Windows Sandbox - Enable",
+    "Content": "Windows Sandbox - تفعيل",
     "Description": "Windows Sandbox is a lightweight virtual machine that provides a temporary desktop environment to safely run applications and programs in isolation.",
-    "category": "Features",
+    "category": "ميزات",
     "panel": "1",
     "feature": [
       "Containers-DisposableClientVM"
@@ -10652,7 +10652,7 @@ $sync.configs.feature = @'
   },
   "WPFFeatureInstall": {
     "Content": "Install Features",
-    "category": "Features",
+    "category": "ميزات",
     "panel": "1",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10660,8 +10660,8 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/features/install"
   },
   "WPFPanelAutologin": {
-    "Content": "AutoLogon - Run",
-    "category": "Fixes",
+    "Content": "AutoLogon - تشغيل",
+    "category": "إصلاحات",
     "panel": "1",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10670,7 +10670,7 @@ $sync.configs.feature = @'
   },
   "WPFFixesUpdate": {
     "Content": "Windows Update - Reset",
-    "category": "Fixes",
+    "category": "إصلاحات",
     "panel": "1",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10679,7 +10679,7 @@ $sync.configs.feature = @'
   },
   "WPFFixesNetwork": {
     "Content": "Network - Reset",
-    "category": "Fixes",
+    "category": "إصلاحات",
     "panel": "1",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10687,8 +10687,8 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/fixes/network"
   },
   "WPFPanelDISM": {
-    "Content": "System Corruption Scan - Run",
-    "category": "Fixes",
+    "Content": "System Corruption Scan - تشغيل",
+    "category": "إصلاحات",
     "panel": "1",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10697,7 +10697,7 @@ $sync.configs.feature = @'
   },
   "WPFFixesWinget": {
     "Content": "WinGet - Reinstall",
-    "category": "Fixes",
+    "category": "إصلاحات",
     "panel": "1",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10706,7 +10706,7 @@ $sync.configs.feature = @'
   },
   "WPFPanelComputer": {
     "Content": "Computer Management",
-    "category": "Legacy Windows Panels",
+    "category": "لوحات ويندوز القديمة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10717,7 +10717,7 @@ $sync.configs.feature = @'
   },
   "WPFPanelControl": {
     "Content": "Control Panel",
-    "category": "Legacy Windows Panels",
+    "category": "لوحات ويندوز القديمة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10728,7 +10728,7 @@ $sync.configs.feature = @'
   },
   "WPFPanelMouse": {
     "Content": "Mouse Properties",
-    "category": "Legacy Windows Panels",
+    "category": "لوحات ويندوز القديمة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10739,7 +10739,7 @@ $sync.configs.feature = @'
   },
   "WPFPanelNetwork": {
     "Content": "Network Connections",
-    "category": "Legacy Windows Panels",
+    "category": "لوحات ويندوز القديمة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10750,7 +10750,7 @@ $sync.configs.feature = @'
   },
   "WPFPanelPower": {
     "Content": "Power Panel",
-    "category": "Legacy Windows Panels",
+    "category": "لوحات ويندوز القديمة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10761,7 +10761,7 @@ $sync.configs.feature = @'
   },
   "WPFPanelPrinter": {
     "Content": "Printer Panel",
-    "category": "Legacy Windows Panels",
+    "category": "لوحات ويندوز القديمة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10772,7 +10772,7 @@ $sync.configs.feature = @'
   },
   "WPFPanelPrograms": {
     "Content": "Programs and Features",
-    "category": "Legacy Windows Panels",
+    "category": "لوحات ويندوز القديمة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10783,7 +10783,7 @@ $sync.configs.feature = @'
   },
   "WPFPanelRegion": {
     "Content": "Region",
-    "category": "Legacy Windows Panels",
+    "category": "لوحات ويندوز القديمة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10794,7 +10794,7 @@ $sync.configs.feature = @'
   },
   "WPFPanelSecurity": {
     "Content": "Security and Maintenance",
-    "category": "Legacy Windows Panels",
+    "category": "لوحات ويندوز القديمة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10805,7 +10805,7 @@ $sync.configs.feature = @'
   },
   "WPFPanelSound": {
     "Content": "Sound Settings",
-    "category": "Legacy Windows Panels",
+    "category": "لوحات ويندوز القديمة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10816,7 +10816,7 @@ $sync.configs.feature = @'
   },
   "WPFPanelSystem": {
     "Content": "System Properties",
-    "category": "Legacy Windows Panels",
+    "category": "لوحات ويندوز القديمة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10827,7 +10827,7 @@ $sync.configs.feature = @'
   },
   "WPFPanelTimedate": {
     "Content": "Time and Date",
-    "category": "Legacy Windows Panels",
+    "category": "لوحات ويندوز القديمة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10838,7 +10838,7 @@ $sync.configs.feature = @'
   },
   "WPFPanelFirewall": {
     "Content": "Windows Defender Firewall",
-    "category": "Legacy Windows Panels",
+    "category": "لوحات ويندوز القديمة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10849,7 +10849,7 @@ $sync.configs.feature = @'
   },
   "WPFPanelRestore": {
     "Content": "Windows Restore",
-    "category": "Legacy Windows Panels",
+    "category": "لوحات ويندوز القديمة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10860,7 +10860,7 @@ $sync.configs.feature = @'
   },
   "WPFWinUtilInstallPSProfile": {
     "Content": "CTT PowerShell Profile - Install",
-    "category": "Powershell Profile Powershell 7+ Only",
+    "category": "ملف PowerShell (لـ PS 7+ فقط)",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10868,8 +10868,8 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/powershell-profile-powershell-7--only/installpsprofile"
   },
   "WPFWinUtilUninstallPSProfile": {
-    "Content": "CTT PowerShell Profile - Remove",
-    "category": "Powershell Profile Powershell 7+ Only",
+    "Content": "CTT PowerShell Profile - إزالة",
+    "category": "ملف PowerShell (لـ PS 7+ فقط)",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -10877,8 +10877,8 @@ $sync.configs.feature = @'
     "link": "https://winutil.christitus.com/code-reference/features/powershell-profile-powershell-7--only/uninstallpsprofile"
   },
   "WPFWinUtilSSHServer": {
-    "Content": "OpenSSH Server - Enable",
-    "category": "Remote Access",
+    "Content": "OpenSSH Server - تفعيل",
+    "category": "الوصول عن بُعد",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -11080,9 +11080,9 @@ $sync.configs.themes = @'
 $sync.configs.tweaks = @'
 {
   "WPFTweaksActivity": {
-    "Content": "Activity History - Disable",
+    "Content": "سجل النشاط - تعطيل",
     "Description": "Erases recent docs, clipboard, and run history.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "registry": [
       {
@@ -11110,9 +11110,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/activity"
   },
   "WPFTweaksHiber": {
-    "Content": "Hibernation - Disable",
+    "Content": "السبات (Hibernation) - تعطيل",
     "Description": "Hibernation is really meant for laptops as it saves what's in memory before turning the PC off. It really should never be used.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "registry": [
       {
@@ -11139,9 +11139,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/hiber"
   },
   "WPFTweaksWidget": {
-    "Content": "Widgets - Remove",
+    "Content": "الأدوات الذكية (Widgets) - إزالة",
     "Description": "Removes the annoying widgets in the bottom left of the Taskbar.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "InvokeScript": [
       "\r\n      # Sometimes if you dont stop the Widgets process the removal may fail\r\n\r\n      Get-Process *Widget* | Stop-Process\r\n      Get-AppxPackage Microsoft.WidgetsPlatformRuntime -AllUsers | Remove-AppxPackage -AllUsers\r\n      Get-AppxPackage MicrosoftWindows.Client.WebExperience -AllUsers | Remove-AppxPackage -AllUsers\r\n\r\n      Invoke-WinUtilExplorerUpdate -action \"restart\"\r\n      Write-Host \"Removed widgets\"\r\n      "
@@ -11149,9 +11149,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/widget"
   },
   "WPFTweaksRevertStartMenu": {
-    "Content": "Start Menu Previous Layout - Enable",
+    "Content": "تخطيط قائمة ابدأ السابق - تفعيل",
     "Description": "Bring back the old Start Menu layout from before the gradual rollout of the new one in 25H2. On newer versions of Windows !!THIS TWEAK WILL NOT WORK!!",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "registry": [
       {
@@ -11165,9 +11165,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/revertstartmenu"
   },
   "WPFTweaksDisableStoreSearch": {
-    "Content": "Microsoft Store Recommended Search Results - Disable",
+    "Content": "نتائج بحث المتجر الموصى بها - تعطيل",
     "Description": "Will not display recommended Microsoft Store apps when searching for apps in the Start menu.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "InvokeScript": [
       "icacls \"$Env:LocalAppData\\Packages\\Microsoft.WindowsStore_8wekyb3d8bbwe\\LocalState\\store.db\" /deny Everyone:F"
@@ -11178,9 +11178,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/disablestoresearch"
   },
   "WPFTweaksLocation": {
-    "Content": "Location Tracking - Disable",
+    "Content": "تتبع الموقع - تعطيل",
     "Description": "Disables Location Tracking.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "service": [
       {
@@ -11215,9 +11215,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/location"
   },
   "WPFTweaksServices": {
-    "Content": "Services - Set to Manual",
+    "Content": "Services - تعيين كيدوي",
     "Description": "Sets some services to Manual startup and adjusts the SvcHostSplitThresholdInKB registry value to better match system memory, which can significantly reduce the number of svchost.exe processes.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "service": [
       {
@@ -11254,7 +11254,7 @@ $sync.configs.tweaks = @'
   "WPFTweaksBraveDebloat": {
     "Content": "Brave Browser - Debloat",
     "Description": "Disables various annoyances like Brave Rewards, Leo AI, Crypto Wallet and VPN.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "registry": [
       {
@@ -11345,9 +11345,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/bravedebloat"
   },
   "WPFTweaksDisableWarningForUnsignedRdp": {
-    "Content": "RDP Unsigned File Warnings - Disable",
+    "Content": "تحذيرات ملفات RDP غير الموقعة - تعطيل",
     "Description": "Disables warnings shown when launching unsigned RDP files introduced with the latest Windows 10 and 11 updates.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "registry": [
       {
@@ -11370,7 +11370,7 @@ $sync.configs.tweaks = @'
   "WPFTweaksEdgeDebloat": {
     "Content": "Microsoft Edge - Debloat",
     "Description": "Disables various telemetry options, popups, and other annoyances in Edge.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "registry": [
       {
@@ -11496,9 +11496,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/edgedebloat"
   },
   "WPFTweaksConsumerFeatures": {
-    "Content": "ConsumerFeatures - Disable",
+    "Content": "ConsumerFeatures - تعطيل",
     "Description": "Stops promoted app installs and reduces app suggestions from Microsoft Store content.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "registry": [
       {
@@ -11512,9 +11512,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/consumerfeatures"
   },
   "WPFTweaksTelemetry": {
-    "Content": "Telemetry - Disable",
+    "Content": "القياس عن بُعد (Telemetry) - تعطيل",
     "Description": "Disables Microsoft Telemetry.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "registry": [
       {
@@ -11611,9 +11611,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/telemetry"
   },
   "WPFTweaksDeliveryOptimization": {
-    "Content": "Delivery Optimization - Disable",
+    "Content": "تحسين التسليم - تعطيل",
     "Description": "Stops Windows from using your bandwidth to upload updates to other PCs on the internet or local network.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "registry": [
       {
@@ -11627,9 +11627,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/deliveryoptimization"
   },
   "WPFTweaksRemoveEdge": {
-    "Content": "Microsoft Edge - Remove",
+    "Content": "Microsoft Edge - إزالة",
     "Description": "Uninstalls Microsoft Edge by creating dummy MicrosoftEdge.exe file in the legacy Edge folder. This tricks Windows into unlocking the official Edge uninstaller allowing for a system-level removal.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "InvokeScript": [
       "\r\n      $Path = Resolve-Path -Path \"$Env:ProgramFiles (x86)\\Microsoft\\Edge\\Application\\*\\Installer\\setup.exe\" | Select-Object -Last 1\r\n\r\n      if (Test-Path $Path) {\r\n          New-Item -Path \"$Env:SystemRoot\\SystemApps\\Microsoft.MicrosoftEdge_8wekyb3d8bbwe\\MicrosoftEdge.exe\" -Force\r\n          Start-Process -FilePath $Path -ArgumentList \"--uninstall --system-level --force-uninstall --delete-profile\" -Wait\r\n          Write-Host \"Microsoft Edge was removed\"\r\n      } else {\r\n          Write-Host \"Microsoft Edge is not installed\"\r\n      }\r\n      "
@@ -11640,9 +11640,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/removeedge"
   },
   "WPFTweaksDisableBitLocker": {
-    "Content": "BitLocker - Disable",
+    "Content": "تشفير BitLocker - تعطيل",
     "Description": "Disables BitLocker.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "InvokeScript": [
       "Disable-BitLocker -MountPoint $Env:SystemDrive"
@@ -11653,9 +11653,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/disablebitlocker"
   },
   "WPFTweaksUTC": {
-    "Content": "Date & Time - Set Time to UTC",
+    "Content": "الوقت والتاريخ - ضبط على UTC",
     "Description": "Essential for computers that are dual booting. Fixes the time sync with Linux systems.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "registry": [
       {
@@ -11669,9 +11669,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/utc"
   },
   "WPFTweaksRemoveOneDrive": {
-    "Content": "Microsoft OneDrive - Remove",
+    "Content": "Microsoft OneDrive - إزالة",
     "Description": "Denies permission to remove OneDrive user files, then uses its own uninstaller to remove it and restores the original permission afterward.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "InvokeScript": [
       "\r\n      # Deny permission to remove OneDrive folder\r\n      icacls $Env:OneDrive /deny \"Administrators:(D,DC)\"\r\n\r\n      Write-Host \"Uninstalling OneDrive...\"\r\n      Start-Process -FilePath (Join-Path $Env:SystemRoot \"System32\\OneDriveSetup.exe\") -ArgumentList '/uninstall' -Wait\r\n\r\n      # Some of OneDrive files use explorer, and OneDrive uses FileCoAuth\r\n      Write-Host \"Removing leftover OneDrive Files...\"\r\n\r\n      Stop-Process -Name FileCoAuth,Explorer\r\n\r\n      Remove-Item \"$Env:LocalAppData\\Microsoft\\OneDrive\" -Recurse -Force\r\n      Remove-Item \"$Env:ProgramData\\Microsoft OneDrive\" -Recurse -Force\r\n\r\n      # Grant back permission to access OneDrive folder\r\n      icacls $Env:OneDrive /grant \"Administrators:(D,DC)\"\r\n\r\n      if (-not (Get-ChildItem -Path $Env:OneDrive)) {\r\n          Remove-Item -Path $Env:OneDrive -Recurse\r\n          [Environment]::SetEnvironmentVariable('OneDrive', $null, 'User')\r\n      }\r\n\r\n      # Disable OneSyncSvc\r\n      Set-Service -Name OneSyncSvc -StartupType Disabled\r\n      "
@@ -11682,9 +11682,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/removeonedrive"
   },
   "WPFTweaksRemoveHomeAndGallery": {
-    "Content": "File Explorer Home and Gallery - Disable",
+    "Content": "الصفحة الرئيسية ومعرض مستكشف الملفات - تعطيل",
     "Description": "Removes the Home and Gallery from Explorer and sets This PC as default.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "registry": [
       {
@@ -11714,7 +11714,7 @@ $sync.configs.tweaks = @'
   "WPFTweaksDisplay": {
     "Content": "Visual Effects - Set to Best Performance",
     "Description": "Sets the system preferences to performance. You can do this manually with sysdm.cpl as well.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "registry": [
       {
@@ -11811,9 +11811,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/display"
   },
   "WPFTweaksReservedStorage": {
-    "Content": "Disable Reserved Storage",
+    "Content": "تعطيل التخزين المحجوز",
     "Description": "Disables Windows Reserved Storage (7-10 GB held for updates/temp files). Recommended only on small drives. Re-enable before major Windows feature updates to avoid installation failures.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "InvokeScript": [
       "DISM /Online /Set-ReservedStorageState /State:Disabled"
@@ -11824,9 +11824,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/reservedstorage"
   },
   "WPFTweaksRestorePoint": {
-    "Content": "Restore Point - Create",
+    "Content": "نقطة استعادة - إنشاء",
     "Description": "Creates a restore point at runtime in case a revert is needed from WinUtil modifications.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "Checked": "False",
     "registry": [
@@ -11844,9 +11844,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/restorepoint"
   },
   "WPFTweaksEndTaskOnTaskbar": {
-    "Content": "End Task With Right Click - Enable",
+    "Content": "إنهاء المهمة بالنقر الأيمن - تفعيل",
     "Description": "Enables option to end task when right clicking a program in the taskbar.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "registry": [
       {
@@ -11860,9 +11860,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/endtaskontaskbar"
   },
   "WPFTweaksStorage": {
-    "Content": "Storage Sense - Disable",
+    "Content": "Storage Sense - تعطيل",
     "Description": "Storage Sense deletes temp files automatically.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "registry": [
       {
@@ -11876,9 +11876,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/storage"
   },
   "WPFTweaksWindowsAI": {
-    "Content": "Windows AI - Disable And Remove",
+    "Content": "Windows AI - تعطيل And Remove",
     "Description": "Removes and disables all AI features/packages",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "registry": [
       {
@@ -11902,9 +11902,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/windowsai"
   },
   "WPFTweaksWPBT": {
-    "Content": "Windows Platform Binary Table (WPBT) - Disable",
+    "Content": "Windows Platform Binary Table (WPBT) - تعطيل",
     "Description": "If enabled, WPBT allows your computer vendor to execute programs at boot time, such as anti-theft software, software drivers, as well as force install software without user consent. Poses potential security risk.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "registry": [
       {
@@ -11918,9 +11918,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/wpbt"
   },
   "WPFTweaksPreventDeviceMetadataFromNetwork": {
-    "Content": "Prevent Device Companion Apps",
+    "Content": "منع تطبيقات الأجهزة المرافقة",
     "Description": "Prevents additional software from being installed when plugging in devices (e.g. Ads when plugging in a monitor). Poses potential security risk.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "registry": [
       {
@@ -11934,9 +11934,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/preventdevicemetadatafromnetwork"
   },
   "WPFTweaksRazerBlock": {
-    "Content": "Razer Software Auto-Install - Disable",
+    "Content": "Razer Software Auto-Install - تعطيل",
     "Description": "Blocks ALL Razer Software installations. The hardware works fine without any software.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "registry": [
       {
@@ -11963,9 +11963,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/razerblock"
   },
   "WPFTweaksDisableNotifications": {
-    "Content": "System Tray Notifications & Calendar - Disable",
+    "Content": "إشعارات شريط النظام والتقويم - تعطيل",
     "Description": "Disables all Notifications INCLUDING Calendar.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "registry": [
       {
@@ -11986,9 +11986,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/disablenotifications"
   },
   "WPFTweaksBlockAdobeNet": {
-    "Content": "Adobe URL Block List - Enable",
+    "Content": "Adobe URL Block List - تفعيل",
     "Description": "Reduces user interruptions by selectively blocking connections to Adobe's activation and telemetry servers. Credit: Ruddernation-Designs",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "InvokeScript": [
       "\r\n      $hostsUrl = Invoke-RestMethod -Uri https://github.com/Ruddernation-Designs/Adobe-URL-Block-List/raw/refs/heads/master/hosts\r\n      Add-Content -Path \"$Env:SystemRoot\\System32\\drivers\\etc\\hosts\" -Value $hostsUrl\r\n\r\n      ipconfig /flushdns\r\n      Write-Host 'Added Adobe url block list from host file'\r\n      "
@@ -11999,9 +11999,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/blockadobenet"
   },
   "WPFTweaksRightClickMenu": {
-    "Content": "Right-Click Menu Previous Layout - Enable",
+    "Content": "Right-Click Menu Previous Layout - تفعيل",
     "Description": "Restores the classic context menu when right-clicking in File Explorer, replacing the simplified Windows 11 version.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "InvokeScript": [
       "\r\n      New-Item -Path \"HKCU:\\Software\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\" -Name InprocServer32 -Value \"\" -Force\r\n      Stop-Process -Name explorer\r\n      "
@@ -12012,9 +12012,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/rightclickmenu"
   },
   "WPFTweaksDiskCleanup": {
-    "Content": "Disk Cleanup - Run",
+    "Content": "تنظيف القرص - تشغيل",
     "Description": "Runs Disk Cleanup on Drive C: and removes old Windows Updates.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "InvokeScript": [
       "\r\n      cleanmgr.exe /d C: /VERYLOWDISK\r\n      Dism.exe /online /Cleanup-Image /StartComponentCleanup /ResetBase\r\n      "
@@ -12022,9 +12022,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/diskcleanup"
   },
   "WPFTweaksDeleteTempFiles": {
-    "Content": "Temporary Files - Remove",
+    "Content": "الملفات المؤقتة - إزالة",
     "Description": "Erases TEMP Folders.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "InvokeScript": [
       "\r\n      Remove-Item -Path \"$Env:Temp\\*\" -Recurse -Force\r\n      Remove-Item -Path \"$Env:SystemRoot\\Temp\\*\" -Recurse -Force\r\n      "
@@ -12032,9 +12032,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/deletetempfiles"
   },
   "WPFTweaksIPv46": {
-    "Content": "IPv6 - Set IPv4 as Preferred",
+    "Content": "بروتوكول IPv6 - Set IPv4 as Preferred",
     "Description": "Setting the IPv4 preference can have latency and security benefits on private networks where IPv6 is not configured.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "registry": [
       {
@@ -12048,9 +12048,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/ipv46"
   },
   "WPFTweaksTeredo": {
-    "Content": "Teredo - Disable",
+    "Content": "Teredo - تعطيل",
     "Description": "Teredo network tunneling is an IPv6 feature that can cause additional latency, but may cause problems with some games.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "registry": [
       {
@@ -12070,9 +12070,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/teredo"
   },
   "WPFTweaksDisableIPv6": {
-    "Content": "IPv6 - Disable",
+    "Content": "بروتوكول IPv6 - تعطيل",
     "Description": "Disables IPv6.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "registry": [
       {
@@ -12092,9 +12092,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/disableipv6"
   },
   "WPFTweaksDisableBGapps": {
-    "Content": "Background Apps - Disable",
+    "Content": "تطبيقات الخلفية - تعطيل",
     "Description": "Disables all Microsoft Store apps from running in the background, which has to be done individually since Windows 11.",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "registry": [
       {
@@ -12108,9 +12108,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/disablebgapps"
   },
   "WPFTweaksDisableExplorerAutoDiscovery": {
-    "Content": "File Explorer Automatic Folder Discovery - Disable",
+    "Content": "الاكتشاف التلقائي للمجلدات - تعطيل",
     "Description": "Windows Explorer automatically tries to guess the type of the folder based on its contents, slowing down the browsing experience. WARNING! Will disable File Explorer grouping.",
-    "category": "Essential Tweaks",
+    "category": "تعديلات أساسية",
     "panel": "1",
     "InvokeScript": [
       "\r\n      # Previously detected folders\r\n      $bags = \"HKCU:\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\Bags\"\r\n\r\n      # Folder types lookup table\r\n      $bagMRU = \"HKCU:\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\BagMRU\"\r\n\r\n      # Flush Explorer view database\r\n      Remove-Item -Path $bags -Recurse -Force\r\n      Write-Host \"Removed $bags\"\r\n\r\n      Remove-Item -Path $bagMRU -Recurse -Force\r\n      Write-Host \"Removed $bagMRU\"\r\n\r\n      # Every folder\r\n      $allFolders = \"HKCU:\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\Bags\\AllFolders\\Shell\"\r\n\r\n      if (!(Test-Path $allFolders)) {\r\n        New-Item -Path $allFolders -Force\r\n        Write-Host \"Created $allFolders\"\r\n      }\r\n\r\n      # Generic view\r\n      New-ItemProperty -Path $allFolders -Name \"FolderType\" -Value \"NotSpecified\" -PropertyType String -Force\r\n      Write-Host \"Set FolderType to NotSpecified\"\r\n\r\n      Write-Host Please sign out and back in, or restart your computer to apply the changes!\r\n      "
@@ -12121,9 +12121,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/essential-tweaks/disableexplorerautodiscovery"
   },
   "WPFToggleDetailedBSoD": {
-    "Content": "BSoD Verbose Mode",
+    "Content": "وضع التفاصيل لشاشة الموت الزرقاء",
     "Description": "Gives more information when you blue screen.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12147,9 +12147,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/detailedbsod"
   },
   "WPFToggleBatteryPercentage": {
-    "Content": "System Tray Battery Percentage",
+    "Content": "نسبة البطارية في شريط النظام",
     "Description": "Shows numeric battery percentage next to the battery icon in the system tray.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12165,9 +12165,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/batterypercentage"
   },
   "WPFToggleDarkMode": {
-    "Content": "Dark Theme for Windows",
+    "Content": "الوضع الداكن لويندوز",
     "Description": "Dark Mode for the system and applications.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12197,9 +12197,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/darkmode"
   },
   "WPFToggleShowExt": {
-    "Content": "File Explorer File Extensions",
+    "Content": "امتدادات الملفات في المستكشف",
     "Description": "Shows .file extensions in Explorer (.exe, .png, etc.)",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12221,9 +12221,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/showext"
   },
   "WPFToggleHiddenFiles": {
-    "Content": "File Explorer Hidden Files",
+    "Content": "الملفات المخفية في المستكشف",
     "Description": "Reveals hidden files in Explorer.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12245,9 +12245,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/hiddenfiles"
   },
   "WPFToggleVerboseLogon": {
-    "Content": "Logon Verbose Mode",
+    "Content": "وضع التفاصيل لتسجيل الدخول",
     "Description": "Show detailed messages during startup/shutdown.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12265,7 +12265,7 @@ $sync.configs.tweaks = @'
   "WPFToggleNewOutlook": {
     "Content": "Microsoft Outlook New Version",
     "Description": "This will ensures the classic Outlook application is used.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12305,9 +12305,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/newoutlook"
   },
   "WPFToggleScrollbars": {
-    "Content": "Scrollbars Always Visible",
+    "Content": "أشرطة التمرير مرئية دائماً",
     "Description": "If enabled, scrollbars will always be visible. If disabled, Windows will automatically hide scrollbars when not in use.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12325,7 +12325,7 @@ $sync.configs.tweaks = @'
   "WPFMultiplaneOverlay": {
     "Content": "Multiplane Overlay",
     "Description": "Multiplane Overlay composes multiple image layers, which can sometimes cause issues with graphics cards. Changes to this preference are applied immediately.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Combobox",
     "ComboItems": "Enabled|Disabled (Compatibility)|Fully Disabled",
@@ -12361,9 +12361,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/multiplaneoverlay"
   },
   "WPFToggleMouseAcceleration": {
-    "Content": "Mouse Acceleration",
+    "Content": "تسريع الماوس",
     "Description": "Makes it so Cursor movement is affected by the speed of your physical mouse movements.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12395,9 +12395,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/mouseacceleration"
   },
   "WPFToggleNumLock": {
-    "Content": "Num Lock on Startup",
+    "Content": "تفعيل Num Lock عند بدء التشغيل",
     "Description": "Toggle the Num Lock key state when your computer starts.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12421,9 +12421,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/numlock"
   },
   "WPFToggleWindowSnapping": {
-    "Content": "Window Snapping",
+    "Content": "محاذاة النوافذ (Snapping)",
     "Description": "Toggles the window snapping feature when dragging windows.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12441,7 +12441,7 @@ $sync.configs.tweaks = @'
   "WPFToggleStandbyFix": {
     "Content": "S0 Sleep Network Connectivity",
     "Description": "Toggles network connectivity during S0 Sleep which is low power idle in modern laptops.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12459,7 +12459,7 @@ $sync.configs.tweaks = @'
   "WPFToggleS3Sleep": {
     "Content": "S3 Sleep",
     "Description": "Toggles between Modern Standby and S3 Sleep, which cuts off power to the CPU while continuing to refresh the memory.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12475,9 +12475,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/s3sleep"
   },
   "WPFToggleHideSettingsHome": {
-    "Content": "Settings Home Page",
+    "Content": "الصفحة الرئيسية للإعدادات",
     "Description": "Toggles the Home Page in the Windows Settings app.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12493,9 +12493,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/hidesettingshome"
   },
   "WPFToggleBingSearch": {
-    "Content": "Start Menu Bing Search",
+    "Content": "بحث Bing في قائمة ابدأ",
     "Description": "Toggles Bing web search results in Windows Search.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12511,9 +12511,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/bingsearch"
   },
   "WPFToggleLoginBlur": {
-    "Content": "Logon Screen Acrylic Blur",
+    "Content": "تأثير الضباب في شاشة تسجيل الدخول",
     "Description": "Toggles the acrylic blur effect on login screen background.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12529,9 +12529,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/loginblur"
   },
   "WPFTweaksDisableLockscreen": {
-    "Content": "Lock Screen - Disable",
+    "Content": "شاشة القفل - تعطيل",
     "Description": "Skips the lock screen entirely and goes directly to the sign-in screen on boot and wake.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12546,9 +12546,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/disablelockscreen"
   },
   "WPFToggleStartMenuRecommendations": {
-    "Content": "Start Menu Recommendations",
+    "Content": "توصيات قائمة ابدأ",
     "Description": "Toggles the recommendations section in the Start Menu. WARNING: This will also disable Windows Spotlight on your Lock Screen as a side effect.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12586,9 +12586,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/startmenurecommendations"
   },
   "WPFToggleStickyKeys": {
-    "Content": "Sticky Keys",
+    "Content": "مفاتيح التصفية (Sticky Keys)",
     "Description": "Toggles the Sticky Keys, which activate when clicking shift rapidly.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12604,9 +12604,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/stickykeys"
   },
   "WPFToggleTaskbarAlignment": {
-    "Content": "Taskbar Centered Icons",
+    "Content": "توسيط أيقونات شريط المهام",
     "Description": "Toggles the Taskbar alignment either to the left or center.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12628,9 +12628,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/taskbaralignment"
   },
   "WPFToggleTaskbarSearch": {
-    "Content": "Taskbar Search Icon",
+    "Content": "أيقونة البحث في شريط المهام",
     "Description": "Toggles the Search Button on the Taskbar.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12646,9 +12646,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/taskbarsearch"
   },
   "WPFToggleTaskView": {
-    "Content": "Taskbar Task View Icon",
+    "Content": "أيقونة عرض المهام",
     "Description": "Toggles the Task View Button in the Taskbar.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12664,9 +12664,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/taskview"
   },
   "WPFToggleGameMode": {
-    "Content": "Game Mode",
+    "Content": "وضع الألعاب",
     "Description": "Toggles Windows prioritizes gaming performance by allocating system resources to games.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12690,9 +12690,9 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/gamemode"
   },
   "WPFToggleLongPaths": {
-    "Content": "Enable Long Paths",
+    "Content": "تفعيل المسارات الطويلة",
     "Description": "Toggles support for file paths longer than 260 characters in Explorer.",
-    "category": "Customize Preferences",
+    "category": "تخصيص التفضيلات",
     "panel": "2",
     "Type": "Toggle",
     "registry": [
@@ -12708,31 +12708,31 @@ $sync.configs.tweaks = @'
     "link": "https://winutil.christitus.com/code-reference/tweaks/customize-preferences/longpaths"
   },
   "WPFOOSUbutton": {
-    "Content": "O&O ShutUp10++ - Run",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "Content": "O&O ShutUp10++ - تشغيل",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "Type": "Button",
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/oosubutton"
   },
   "WPFchangedns": {
     "Content": "DNS - Set to:",
-    "category": "z__Advanced Tweaks - CAUTION",
+    "category": "تعديلات متقدمة - تحذير",
     "panel": "1",
     "Type": "Combobox",
     "ComboItems": "Default DHCP Google Cloudflare Cloudflare_Malware Cloudflare_Malware_Adult Open_DNS Quad9 AdGuard_Ads_Trackers AdGuard_Ads_Trackers_Malware_Adult Mullvad Mullvad_Ads_Trackers Mullvad_Ads_Trackers_Malware Mullvad_Ads_Trackers_Malware_Social Mullvad_Ads_Trackers_Malware_Adult_Gambling Mullvad_Ads_Trackers_Malware_Adult_Gambling_Social",
     "link": "https://winutil.christitus.com/code-reference/tweaks/z--advanced-tweaks---caution/changedns"
   },
   "WPFAddUltPerf": {
-    "Content": "Ultimate Performance Profile - Enable",
-    "category": "Performance Plans - NOT FOR LAPTOPS",
+    "Content": "Ultimate Performance Profile - تفعيل",
+    "category": "خطط الأداء - ليس للأجهزة المحمولة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
     "link": "https://winutil.christitus.com/code-reference/tweaks/performance-plans---not-for-laptops/addultperf"
   },
   "WPFRemoveUltPerf": {
-    "Content": "Ultimate Performance Profile - Disable",
-    "category": "Performance Plans - NOT FOR LAPTOPS",
+    "Content": "Ultimate Performance Profile - تعطيل",
+    "category": "خطط الأداء - ليس للأجهزة المحمولة",
     "panel": "2",
     "Type": "Button",
     "ButtonWidth": "300",
@@ -14161,7 +14161,7 @@ $inputXML = @'
                                     <Button Name="WPFminimal" Content=" بسيط " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
                                     <Button Name="WPFAdvanced" Content=" متقدم " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
                                     <Button Name="WPFClearTweaksSelection" Content=" مسح " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
-                                    <Button Name="WPFGetInstalledTweaks" Content=" Get Installed Tweaks " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
+                                    <Button Name="WPFGetInstalledTweaks" Content=" استخراج التعديلات المثبتة " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
                                     <Button Name="WPFAppxRemoval" Content=" إزالة AppX " Margin="2" Width="{DynamicResource ButtonWidth}" Height="{DynamicResource ButtonHeight}"/>
                                 </WrapPanel>
                             </StackPanel>
