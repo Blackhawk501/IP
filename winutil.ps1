@@ -3552,7 +3552,7 @@ function Invoke-WinUtilScript {
     } catch {
         # Generic catch block to handle any other type of exception
         Write-Warning "Unable to run script for $Name due to unhandled exception."
-        Write-Warning $psitem.Exception.StackTrace
+        if ($psitem.Exception.StackTrace) { Write-Warning $psitem.Exception.StackTrace }
         Write-WinUtilLog -Level "ERROR" -Component "Script" -Message "Unhandled exception while running script for $Name`: $($psitem.Exception.Message)"
     }
 
@@ -4419,7 +4419,7 @@ function Set-WinUtilRegistry {
        Write-WinUtilLog -Level "ERROR" -Component "Registry" -Message "Unauthorized while changing $Path\$Name`: $($psitem.Exception.Message)"
     } catch {
         Write-Warning "Unable to set $Name due to unhandled exception."
-        Write-Warning $psitem.Exception.StackTrace
+        if ($psitem.Exception.StackTrace) { Write-Warning $psitem.Exception.StackTrace }
         Write-WinUtilLog -Level "ERROR" -Component "Registry" -Message "Unhandled exception while changing $Path\$Name`: $($psitem.Exception.Message)"
     }
 }
