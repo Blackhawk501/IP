@@ -55,6 +55,23 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
     break
 }
 
+
+# [NEW] إنشاء نقطة استعادة تلقائياً عند تشغيل البرنامج
+Write-Host "جارٍ إنشاء نقطة استعادة للنظام للحماية... يرجى الانتظار" -ForegroundColor Cyan
+try {
+    $srKey = "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\SystemRestore"
+    if (Test-Path $srKey) {
+        New-ItemProperty -Path $srKey -Name "SystemRestorePointCreationFrequency" -Value 0 -PropertyType DWord -Force -ErrorAction SilentlyContinue | Out-Null
+    }
+    if (-not (Get-ComputerRestorePoint -ErrorAction SilentlyContinue)) {
+        Enable-ComputerRestore -Drive $Env:SystemDrive -ErrorAction SilentlyContinue
+    }
+    Checkpoint-Computer -Description "WinUtil Auto Backup" -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
+    Write-Host "تم إنشاء نقطة الاستعادة بنجاح!" -ForegroundColor Green
+} catch {
+    Write-Host "لم يتم إنشاء نقطة الاستعادة: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
 # Variable to sync between runspaces
 $sync = [Hashtable]::Synchronized(@{})
 $sync.version = "26.08.19"
