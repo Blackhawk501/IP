@@ -1,10 +1,8 @@
-﻿<#
-.NOTES
-    Author         : Chris Titus @christitustech
-    Runspace Author: @DeveloperDurp
-    GitHub         : https://github.com/ChrisTitusTech
-    Version        : 26.08.19
-#>
+﻿# .NOTES
+#     Author         : Chris Titus @christitustech
+#     Runspace Author: @DeveloperDurp
+#     GitHub         : https://github.com/ChrisTitusTech
+#     Version        : 26.08.19
 
 param (
     [string]$Config,
