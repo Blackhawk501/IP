@@ -1979,7 +1979,7 @@ function Invoke-WinUtilInstallPSProfile {
         winget install Microsoft.WindowsTerminal --source winget --silent
     }
 
-    if (-not (Get-Command pwsh)) {
+    if (-not (Get-Command pwsh -ErrorAction SilentlyContinue)) {
         Write-Host "لم يُعثر على PowerShell 7. جارٍ التثبيت..."
         Install-WinUtilWinget
         winget install Microsoft.PowerShell --source winget --installer-type wix --silent
